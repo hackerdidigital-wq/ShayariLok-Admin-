@@ -25,6 +25,7 @@ const SETTINGS_DOC_ID = 'github';
 const DRAFT_DOC_ID = 'default';
 
 export async function ensureUserProfile(user: User): Promise<void> {
+  if (!db) return;
   const path = `users/${user.uid}`;
   const ref = doc(db, 'users', user.uid);
   try {
@@ -60,6 +61,7 @@ export async function saveCloudRepoSettings(
   settings: GitHubSettings,
   lastSha: string
 ): Promise<void> {
+  if (!db) return;
   const owner = settings.owner.trim() || 'owner';
   const repo = settings.repo.trim() || 'repo';
   const branch = settings.branch.trim() || 'main';
@@ -85,6 +87,7 @@ export async function saveCloudDraft(
   uid: string,
   config: ShayariLokConfig
 ): Promise<void> {
+  if (!db) throw new Error('Firestore is not available.');
   const path = `users/${uid}/drafts/${DRAFT_DOC_ID}`;
   const ref = doc(db, 'users', uid, 'drafts', DRAFT_DOC_ID);
   const safe = prepareDraftForFirestore(config);
@@ -102,6 +105,7 @@ export async function saveCloudDraft(
 export async function loadCloudDraft(
   uid: string
 ): Promise<ShayariLokConfig | null> {
+  if (!db) throw new Error('Firestore is not available.');
   const path = `users/${uid}/drafts/${DRAFT_DOC_ID}`;
   const ref = doc(db, 'users', uid, 'drafts', DRAFT_DOC_ID);
   try {
@@ -117,6 +121,7 @@ export async function recordPublishLog(
   uid: string,
   entry: Omit<PublishLogEntry, 'id' | 'createdAt'>
 ): Promise<void> {
+  if (!db) return;
   const path = `users/${uid}/publishLogs`;
   try {
     await addDoc(collection(db, 'users', uid, 'publishLogs'), {
@@ -148,6 +153,7 @@ export function subscribeUserWorkspace(
     onError?: (error: Error) => void;
   }
 ): Unsubscribe {
+  if (!db) return () => {};
   const settingsPath = `users/${uid}/settings/${SETTINGS_DOC_ID}`;
   const unsubSettings = onSnapshot(
     doc(db, 'users', uid, 'settings', SETTINGS_DOC_ID),

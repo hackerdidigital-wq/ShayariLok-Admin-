@@ -14,7 +14,7 @@ import { NotificationsSection } from './components/NotificationsSection';
 import { ShayariManagerSection } from './components/ShayariManagerSection';
 import { Sidebar } from './components/Sidebar';
 import { TopBar } from './components/TopBar';
-import { auth, googleProvider } from './firebase';
+import { auth, firebaseInitError, googleProvider } from './firebase';
 import {
   ensureUserProfile,
   loadCloudDraft,
@@ -136,6 +136,11 @@ export default function App() {
 
   // Firebase Auth & Firestore Workspace Listener
   useEffect(() => {
+    if (!auth) {
+      setAuthLoading(false);
+      return;
+    }
+
     let unsubWorkspace: (() => void) | null = null;
 
     const unsubAuth = onAuthStateChanged(auth, async (currentUser) => {
@@ -324,6 +329,13 @@ export default function App() {
   };
 
   const handleGoogleSignIn = async () => {
+    if (!auth || !googleProvider) {
+      showBanner(
+        'error',
+        firebaseInitError || 'Firebase Auth उपलब्ध नहीं है।'
+      );
+      return;
+    }
     try {
       await signInWithPopup(auth, googleProvider);
       showBanner('success', 'Google अकाउंट से साइन-इन सफल रहा।');
@@ -335,6 +347,7 @@ export default function App() {
   };
 
   const handleGoogleSignOut = async () => {
+    if (!auth) return;
     try {
       await signOut(auth);
       showBanner('info', 'आप सफलतापूर्वक साइन-आउट हो गए हैं।');
