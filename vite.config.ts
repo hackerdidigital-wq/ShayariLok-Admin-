@@ -7,6 +7,12 @@ export default defineConfig(() => {
   return {
     base: '/ShayariLok-Admin/',
     plugins: [react(), tailwindcss()],
+    build: {
+      target: 'es2020',
+      outDir: 'dist',
+      assetsDir: 'assets',
+      sourcemap: false,
+    },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),

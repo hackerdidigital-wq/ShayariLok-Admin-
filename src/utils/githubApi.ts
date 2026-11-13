@@ -34,17 +34,29 @@ export function loadGitHubSettings(): GitHubSettings {
 
 export function saveGitHubSettings(settings: GitHubSettings): void {
   if (typeof window === 'undefined') return;
-  window.localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(settings));
+  try {
+    window.localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(settings));
+  } catch {
+    // Ignore storage quota or private browsing errors
+  }
 }
 
 export function loadSavedSha(): string {
   if (typeof window === 'undefined') return '';
-  return window.localStorage.getItem(STORAGE_KEY_SHA) ?? '';
+  try {
+    return window.localStorage.getItem(STORAGE_KEY_SHA) ?? '';
+  } catch {
+    return '';
+  }
 }
 
 export function saveLocalSha(sha: string): void {
   if (typeof window === 'undefined') return;
-  window.localStorage.setItem(STORAGE_KEY_SHA, sha);
+  try {
+    window.localStorage.setItem(STORAGE_KEY_SHA, sha);
+  } catch {
+    // Ignore storage quota or private browsing errors
+  }
 }
 
 export function loadLocalDraft(): ShayariLokConfig | null {
@@ -60,7 +72,11 @@ export function loadLocalDraft(): ShayariLokConfig | null {
 
 export function saveLocalDraft(config: ShayariLokConfig): void {
   if (typeof window === 'undefined') return;
-  window.localStorage.setItem(STORAGE_KEY_DRAFT, serializeConfigJson(config));
+  try {
+    window.localStorage.setItem(STORAGE_KEY_DRAFT, serializeConfigJson(config));
+  } catch {
+    // Ignore storage quota or private browsing errors
+  }
 }
 
 function buildContentsUrl(settings: GitHubSettings, includeRef: boolean): string {
