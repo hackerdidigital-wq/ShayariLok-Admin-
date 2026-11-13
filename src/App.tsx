@@ -46,8 +46,24 @@ import {
   saveLocalSha,
 } from './utils/githubApi';
 
+const VALID_SECTIONS: ReadonlyArray<AdminSection> = [
+  'dashboard',
+  'shayari',
+  'notifications',
+  'monetization',
+  'sync',
+];
+
+function getSectionFromHash(): AdminSection {
+  if (typeof window === 'undefined') return 'dashboard';
+  const raw = window.location.hash.replace(/^#\/?/, '').trim() as AdminSection;
+  return VALID_SECTIONS.includes(raw) ? raw : 'dashboard';
+}
+
 export default function App() {
-  const [activeSection, setActiveSection] = useState<AdminSection>('dashboard');
+  const [activeSection, setActiveSection] = useState<AdminSection>(() =>
+    getSectionFromHash()
+  );
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
 
@@ -94,6 +110,24 @@ export default function App() {
     },
     []
   );
+
+  const navigateSection = useCallback((section: AdminSection) => {
+    setActiveSection(section);
+    if (typeof window !== 'undefined') {
+      const targetHash = `#/${section}`;
+      if (window.location.hash !== targetHash) {
+        window.location.hash = targetHash;
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    const onHashChange = () => {
+      setActiveSection(getSectionFromHash());
+    };
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
 
   // Persist local draft automatically so edits survive reload
   useEffect(() => {
@@ -160,7 +194,7 @@ export default function App() {
     async (targetSettings?: GitHubSettings) => {
       const activeSettings = targetSettings ?? settings;
       if (!isGitHubConfigured(activeSettings, false)) {
-        setActiveSection('sync');
+        navigateSection('sync');
         showBanner(
           'info',
           'पहले GitHub Username/Owner, Repository Name और File Path सेव करें।'
@@ -192,7 +226,7 @@ export default function App() {
         showBanner('error', msg);
       }
     },
-    [settings, user, showBanner]
+    [settings, user, showBanner, navigateSection]
   );
 
   // Auto-load live config.json on app boot when GitHub repo is configured
@@ -233,7 +267,7 @@ export default function App() {
 
   const handlePublishToGitHub = async () => {
     if (!isGitHubConfigured(settings, true)) {
-      setActiveSection('sync');
+      navigateSection('sync');
       showBanner(
         'info',
         'GitHub पर पब्लिश करने के लिए Owner, Repo, Path और Personal Access Token (PAT) भरें।'
@@ -355,7 +389,7 @@ export default function App() {
     <div className="min-h-screen flex bg-slate-50 text-slate-900">
       <Sidebar
         activeSection={activeSection}
-        onSelectSection={setActiveSection}
+        onSelectSection={navigateSection}
         shayariCount={config.shayari_list.length}
         notificationCount={config.notifications.length}
         unsaved={unsaved}
@@ -416,7 +450,7 @@ export default function App() {
             <DashboardSection
               config={config}
               onUpdate={handleUpdateConfig}
-              onNavigate={setActiveSection}
+              onNavigate={navigateSection}
             />
           )}
 
