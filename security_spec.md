@@ -5,8 +5,11 @@
 2. GitHub connection settings at `/users/{userId}/settings/{settingId}` require a valid parent `/users/{userId}` document (`exists(...)`), strict `ownerId == request.auth.uid`, bounded string lengths, and server-verified `updatedAt == request.time`.
 3. Cloud config drafts at `/users/{userId}/drafts/{draftId}` require a valid parent `/users/{userId}` document, strict `ownerId == request.auth.uid`, exact key allowlisting (`hasAll` + `hasOnly`), bounded lists (`categories.size() >= 1 && categories.size() <= 50`, `notifications.size() <= 100`, `shayari_list.size() <= 500`), type validation for every `config.json` field, and `updatedAt == request.time`.
 4. Publish logs at `/users/{userId}/publishLogs/{logId}` are append-only (no client updates or deletes to preserve audit integrity), require parent `/users/{userId}`, strict `ownerId == request.auth.uid`, and `createdAt == request.time`.
-5. No user may list `/users` globally or read another user's subcollections.
-6. Document IDs `{userId}`, `{settingId}`, `{draftId}`, `{logId}` must pass `isValidId()` (`^[a-zA-Z0-9_\\-]+$`, length <= 128).
+5. Proxy profiles at `/users/{userId}/proxyProfiles/{profileId}` store only non-secret routing settings (mode, proxy URLs, timeout/retry limits, bounded fallbackNodes <= 10), require parent `/users/{userId}`, strict `ownerId == request.auth.uid`, and `updatedAt == request.time`. Secret header values and GitHub PAT remain browser-local only.
+6. No user may list `/users` globally or read another user's subcollections.
+7. Document IDs `{userId}`, `{settingId}`, `{draftId}`, `{logId}`, `{profileId}`, `{siteId}` must pass `isValidId()` (`^[a-zA-Z0-9_\\-]+$`, length <= 128).
+8. Public website mirrors at `/publicSites/{siteId}` allow targeted `get` by `siteId` (never `list`, preventing scraping), omit internal AdMob unit IDs, and allow writes/deletes strictly when verified owner `request.auth.uid == siteId` with `ownerId == request.auth.uid`, exact key allowlisting, bounded arrays (`suvichar_list <= 100`, `photo_shayari_list <= 60`), and `updatedAt == request.time`.
+
 
 ## 2. The "Dirty Dozen" Payloads (Adversarial Tests)
 1. **Unauthenticated read/write** to `/users/uid1/drafts/default` -> `PERMISSION_DENIED`.

@@ -109,6 +109,107 @@ service cloud.firestore {
         && data.createdAt is timestamp;
     }
 
+    function isValidProxyProfile(data) {
+      return data.keys().hasAll([
+          'ownerId', 'mode', 'primaryProxyUrl', 'rawMirrorUrl', 'fallbackNodes',
+          'timeoutMs', 'maxRetries', 'autoFallbackToDirect', 'forwardPatThroughProxy',
+          'customHeaderName', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'ownerId', 'mode', 'primaryProxyUrl', 'rawMirrorUrl', 'fallbackNodes',
+          'timeoutMs', 'maxRetries', 'autoFallbackToDirect', 'forwardPatThroughProxy',
+          'customHeaderName', 'updatedAt'
+        ])
+        && data.ownerId is string && data.ownerId == request.auth.uid && isValidId(data.ownerId)
+        && data.mode is string && data.mode in ['direct', 'cloudflare_worker', 'custom_prefix', 'mirror_read']
+        && data.primaryProxyUrl is string && data.primaryProxyUrl.size() <= 500
+        && data.rawMirrorUrl is string && data.rawMirrorUrl.size() <= 500
+        && data.fallbackNodes is list && data.fallbackNodes.size() <= 10
+        && (data.fallbackNodes.size() == 0 || data.fallbackNodes[0] is map)
+        && data.timeoutMs is int && data.timeoutMs >= 1000 && data.timeoutMs <= 60000
+        && data.maxRetries is int && data.maxRetries >= 0 && data.maxRetries <= 5
+        && data.autoFallbackToDirect is bool
+        && data.forwardPatThroughProxy is bool
+        && data.customHeaderName is string && data.customHeaderName.size() <= 80
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPublicSite(data) {
+      return data.keys().hasAll([
+          'ownerId', 'organizationName', 'supportEmail', 'app_name',
+          'latest_version_code', 'force_update_url', 'maintenance_mode',
+          'maintenance_message', 'privacy_policy_url', 'social_link',
+          'ads_enabled', 'announcement_title', 'announcement_message',
+          'categories', 'notifications', 'shayari_list',
+          'heroHeadline', 'heroSubheadline', 'websiteControls',
+          'suvichar_list', 'photo_shayari_list', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'ownerId', 'organizationName', 'supportEmail', 'app_name',
+          'latest_version_code', 'force_update_url', 'maintenance_mode',
+          'maintenance_message', 'privacy_policy_url', 'social_link',
+          'ads_enabled', 'announcement_title', 'announcement_message',
+          'categories', 'notifications', 'shayari_list',
+          'heroHeadline', 'heroSubheadline', 'websiteControls',
+          'suvichar_list', 'photo_shayari_list', 'updatedAt'
+        ])
+        && data.ownerId is string && data.ownerId == request.auth.uid && isValidId(data.ownerId)
+        && data.organizationName is string && data.organizationName.size() >= 1 && data.organizationName.size() <= 120
+        && data.supportEmail is string && data.supportEmail.size() <= 254
+        && data.app_name is string && data.app_name.size() >= 1 && data.app_name.size() <= 80
+        && data.latest_version_code is int && data.latest_version_code >= 1 && data.latest_version_code <= 9999999
+        && data.force_update_url is string && data.force_update_url.size() <= 500
+        && data.maintenance_mode is bool
+        && data.maintenance_message is string && data.maintenance_message.size() <= 1000
+        && data.privacy_policy_url is string && data.privacy_policy_url.size() <= 500
+        && data.social_link is string && data.social_link.size() <= 500
+        && data.ads_enabled is bool
+        && data.announcement_title is string && data.announcement_title.size() <= 200
+        && data.announcement_message is string && data.announcement_message.size() <= 1000
+        && data.categories is list && data.categories.size() >= 1 && data.categories.size() <= 50
+        && data.categories[0] is string && data.categories[0] == 'All'
+        && data.notifications is list && data.notifications.size() <= 100
+        && (data.notifications.size() == 0 || data.notifications[0] is map)
+        && data.shayari_list is list && data.shayari_list.size() <= 500
+        && (data.shayari_list.size() == 0 || data.shayari_list[0] is map)
+        && data.heroHeadline is string && data.heroHeadline.size() <= 240
+        && data.heroSubheadline is string && data.heroSubheadline.size() <= 500
+        && data.websiteControls is map
+        && data.websiteControls.keys().hasAll([
+          'showNotificationBell', 'showAnnouncementBanner',
+          'showSuvicharSection', 'showPhotoShayariSection', 'showMaintenanceNotice'
+        ])
+        && data.websiteControls.keys().hasOnly([
+          'showNotificationBell', 'showAnnouncementBanner',
+          'showSuvicharSection', 'showPhotoShayariSection', 'showMaintenanceNotice'
+        ])
+        && data.websiteControls.showNotificationBell is bool
+        && data.websiteControls.showAnnouncementBanner is bool
+        && data.websiteControls.showSuvicharSection is bool
+        && data.websiteControls.showPhotoShayariSection is bool
+        && data.websiteControls.showMaintenanceNotice is bool
+        && data.suvichar_list is list && data.suvichar_list.size() <= 100
+        && (data.suvichar_list.size() == 0 || data.suvichar_list[0] is map)
+        && data.photo_shayari_list is list && data.photo_shayari_list.size() <= 60
+        && (data.photo_shayari_list.size() == 0 || data.photo_shayari_list[0] is map)
+        && data.updatedAt is timestamp;
+    }
+
+    match /publicSites/{siteId} {
+      allow get: if isValidId(siteId);
+      allow list: if false;
+      allow create: if isValidId(siteId)
+        && isOwner(siteId)
+        && isValidPublicSite(incoming())
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(siteId)
+        && isOwner(siteId)
+        && isValidPublicSite(incoming())
+        && incoming().ownerId == existing().ownerId
+        && incoming().updatedAt == request.time;
+      allow delete: if isValidId(siteId) && isOwner(siteId);
+    }
+
     match /users/{userId} {
       allow get: if isValidId(userId) && isOwner(userId);
       allow list: if false;
@@ -182,6 +283,29 @@ service cloud.firestore {
           && incoming().createdAt == request.time
           && exists(/databases/$(database)/documents/users/$(userId));
         allow update, delete: if false;
+      }
+
+      match /proxyProfiles/{profileId} {
+        allow get: if isValidId(userId) && isValidId(profileId) && isOwner(userId);
+        allow list: if isOwner(userId) && resource.data.ownerId == request.auth.uid;
+        allow create: if isValidId(userId)
+          && isValidId(profileId)
+          && isOwner(userId)
+          && isValidProxyProfile(incoming())
+          && incoming().updatedAt == request.time
+          && exists(/databases/$(database)/documents/users/$(userId));
+        allow update: if isValidId(userId)
+          && isValidId(profileId)
+          && isOwner(userId)
+          && isValidProxyProfile(incoming())
+          && incoming().ownerId == existing().ownerId
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly([
+            'mode', 'primaryProxyUrl', 'rawMirrorUrl', 'fallbackNodes',
+            'timeoutMs', 'maxRetries', 'autoFallbackToDirect',
+            'forwardPatThroughProxy', 'customHeaderName', 'updatedAt'
+          ]);
+        allow delete: if isValidId(userId) && isValidId(profileId) && isOwner(userId);
       }
     }
   }

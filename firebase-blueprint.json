@@ -263,6 +263,214 @@
         "message",
         "createdAt"
       ]
+    },
+    "ProxyProfile": {
+      "title": "ProxyProfile",
+      "description": "Non-secret GitHub API proxy and CDN mirror routing preferences for the signed-in admin.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Owner Firebase Auth UID."
+        },
+        "mode": {
+          "type": "string",
+          "enum": ["direct", "cloudflare_worker", "custom_prefix", "mirror_read"],
+          "description": "Active routing mode for GitHub and raw config reads."
+        },
+        "primaryProxyUrl": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "Primary proxy worker or prefix URL."
+        },
+        "rawMirrorUrl": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "CDN or raw mirror URL template for GET config reads."
+        },
+        "fallbackNodes": {
+          "type": "array",
+          "description": "Bounded list of up to 10 fallback proxy node configs."
+        },
+        "timeoutMs": {
+          "type": "integer",
+          "description": "Request timeout in milliseconds (1000-60000)."
+        },
+        "maxRetries": {
+          "type": "integer",
+          "description": "Automatic retry attempts per route (0-5)."
+        },
+        "autoFallbackToDirect": {
+          "type": "boolean",
+          "description": "Whether to fall back to direct api.github.com if proxy nodes fail."
+        },
+        "forwardPatThroughProxy": {
+          "type": "boolean",
+          "description": "Whether to forward GitHub PAT through trusted worker proxies."
+        },
+        "customHeaderName": {
+          "type": "string",
+          "maxLength": 80,
+          "description": "Optional custom proxy header name (value stays local-only)."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last update server timestamp."
+        }
+      },
+      "required": [
+        "ownerId",
+        "mode",
+        "primaryProxyUrl",
+        "rawMirrorUrl",
+        "fallbackNodes",
+        "timeoutMs",
+        "maxRetries",
+        "autoFallbackToDirect",
+        "forwardPatThroughProxy",
+        "customHeaderName",
+        "updatedAt"
+      ]
+    },
+    "PublicSite": {
+      "title": "PublicSite",
+      "description": "Publicly readable real-time website mirror combining Shayari Lok config, Suvichar, Photo Shayari cards, and admin notification visibility controls.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Owner Firebase Auth UID."
+        },
+        "organizationName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "description": "Publisher organization display name."
+        },
+        "supportEmail": {
+          "type": "string",
+          "maxLength": 254,
+          "description": "Public support email for privacy inquiries."
+        },
+        "app_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "description": "Public app brand name."
+        },
+        "latest_version_code": {
+          "type": "integer",
+          "description": "Latest Android version code."
+        },
+        "force_update_url": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "App download URL."
+        },
+        "maintenance_mode": {
+          "type": "boolean",
+          "description": "Maintenance switch."
+        },
+        "maintenance_message": {
+          "type": "string",
+          "maxLength": 1000,
+          "description": "Maintenance message."
+        },
+        "privacy_policy_url": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "Canonical privacy policy URL."
+        },
+        "social_link": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "Community channel link."
+        },
+        "ads_enabled": {
+          "type": "boolean",
+          "description": "Public indicator for AdMob policy disclosure."
+        },
+        "announcement_title": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "Announcement headline."
+        },
+        "announcement_message": {
+          "type": "string",
+          "maxLength": 1000,
+          "description": "Announcement body."
+        },
+        "categories": {
+          "type": "array",
+          "description": "Bounded list of Shayari categories."
+        },
+        "notifications": {
+          "type": "array",
+          "description": "Bounded list of live notifications."
+        },
+        "shayari_list": {
+          "type": "array",
+          "description": "Bounded list of Shayari items."
+        },
+        "heroHeadline": {
+          "type": "string",
+          "maxLength": 240,
+          "description": "Public website hero headline."
+        },
+        "heroSubheadline": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "Public website hero subheadline."
+        },
+        "websiteControls": {
+          "type": "object",
+          "description": "Real-time visibility toggles controlled from Admin Notification Panel."
+        },
+        "suvichar_list": {
+          "type": "array",
+          "description": "Bounded list of inspirational Suvichar items."
+        },
+        "photo_shayari_list": {
+          "type": "array",
+          "description": "Bounded list of Photo Shayari overlay cards."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last update server timestamp."
+        }
+      },
+      "required": [
+        "ownerId",
+        "organizationName",
+        "supportEmail",
+        "app_name",
+        "latest_version_code",
+        "force_update_url",
+        "maintenance_mode",
+        "maintenance_message",
+        "privacy_policy_url",
+        "social_link",
+        "ads_enabled",
+        "announcement_title",
+        "announcement_message",
+        "categories",
+        "notifications",
+        "shayari_list",
+        "heroHeadline",
+        "heroSubheadline",
+        "websiteControls",
+        "suvichar_list",
+        "photo_shayari_list",
+        "updatedAt"
+      ]
     }
   },
   "firestore": {
@@ -281,6 +489,14 @@
     "/users/{userId}/publishLogs/{logId}": {
       "schema": { "$ref": "#/entities/PublishLog" },
       "description": "Immutable history of GitHub config.json publishes by the user."
+    },
+    "/users/{userId}/proxyProfiles/{profileId}": {
+      "schema": { "$ref": "#/entities/ProxyProfile" },
+      "description": "Non-secret GitHub API proxy and failover routing configuration for the signed-in admin."
+    },
+    "/publicSites/{siteId}": {
+      "schema": { "$ref": "#/entities/PublicSite" },
+      "description": "Publicly readable real-time Shayari Lok website state keyed by owner UID."
     }
   }
 }

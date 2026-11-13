@@ -13,9 +13,11 @@ import {
   RefreshCw,
   Save,
   UploadCloud,
+  Waypoints,
 } from 'lucide-react';
 import type {
   GitHubSettings,
+  ProxySettings,
   PublishLogEntry,
   SyncStatus,
 } from '../types/config';
@@ -38,6 +40,8 @@ interface GitHubSyncSectionProps {
   onLoadCloudDraft: () => void;
   cloudBusy: boolean;
   publishLogs: PublishLogEntry[];
+  proxySettings: ProxySettings;
+  onOpenProxySettings: () => void;
 }
 
 export const GitHubSyncSection: React.FC<GitHubSyncSectionProps> = ({
@@ -58,6 +62,8 @@ export const GitHubSyncSection: React.FC<GitHubSyncSectionProps> = ({
   onLoadCloudDraft,
   cloudBusy,
   publishLogs,
+  proxySettings,
+  onOpenProxySettings,
 }) => {
   const [showToken, setShowToken] = useState(false);
 
@@ -256,6 +262,33 @@ export const GitHubSyncSection: React.FC<GitHubSyncSectionProps> = ({
           >
             <UploadCloud className="w-4 h-4" />
             <span>Publish to GitHub (PUT)</span>
+          </button>
+        </div>
+
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-4 border-t border-slate-100 text-xs">
+          <div className="flex items-center gap-2 text-slate-600">
+            <Waypoints className="w-4 h-4 text-indigo-600 shrink-0" />
+            <span>
+              Active Route:{' '}
+              <strong className="text-slate-900">
+                {proxySettings.mode === 'direct'
+                  ? 'Direct GitHub API'
+                  : proxySettings.mode === 'cloudflare_worker'
+                    ? 'Cloudflare Worker Proxy'
+                    : proxySettings.mode === 'custom_prefix'
+                      ? 'Prefix / CORS Relay'
+                      : 'CDN Mirror Read + API Write'}
+              </strong>
+              {proxySettings.fallbackNodes.filter((n) => n.enabled).length > 0 &&
+                ` · ${proxySettings.fallbackNodes.filter((n) => n.enabled).length} fallback node(s)`}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={onOpenProxySettings}
+            className="text-indigo-600 hover:text-indigo-800 font-semibold whitespace-nowrap self-start sm:self-auto"
+          >
+            Configure Proxy & Mirrors →
           </button>
         </div>
       </section>

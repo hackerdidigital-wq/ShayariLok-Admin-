@@ -1,6 +1,18 @@
-import type { GitHubSettings, ShayariLokConfig } from '../types/config';
+import type {
+  GitHubSettings,
+  ProxyAttemptLog,
+  ProxySettings,
+  ShayariLokConfig,
+} from '../types/config';
 import { decodeUtf8Base64, encodeUtf8Base64 } from './base64';
 import { normalizeConfig, serializeConfigJson } from './configHelpers';
+import {
+  buildTargetGitHubApiUrl,
+  DEFAULT_PROXY_SETTINGS,
+  executeProxiedRequest,
+  fetchWithTimeout,
+  resolveMirrorTemplateUrl,
+} from './proxyEngine';
 
 const STORAGE_KEY_SETTINGS = 'shayarilok_github_settings_v1';
 const STORAGE_KEY_SHA = 'shayarilok_github_sha_v1';
@@ -79,20 +91,6 @@ export function saveLocalDraft(config: ShayariLokConfig): void {
   }
 }
 
-function buildContentsUrl(settings: GitHubSettings, includeRef: boolean): string {
-  const owner = encodeURIComponent(settings.owner.trim());
-  const repo = encodeURIComponent(settings.repo.trim());
-  const cleanPath = settings.path
-    .trim()
-    .replace(/^\/+/, '')
-    .split('/')
-    .map((seg) => encodeURIComponent(seg))
-    .join('/');
-  const base = `https://api.github.com/repos/${owner}/${repo}/contents/${cleanPath}`;
-  if (!includeRef || !settings.branch.trim()) return base;
-  return `${base}?ref=${encodeURIComponent(settings.branch.trim())}`;
-}
-
 export function isGitHubConfigured(
   settings: GitHubSettings,
   requireToken = false
@@ -109,34 +107,118 @@ export interface GitHubFetchResult {
   config: ShayariLokConfig;
   sha: string;
   htmlUrl?: string;
+  routeLabel: string;
+  latencyMs: number;
 }
 
 export async function fetchGitHubConfig(
-  settings: GitHubSettings
+  settings: GitHubSettings,
+  proxySettings: ProxySettings = DEFAULT_PROXY_SETTINGS,
+  onAttempt?: (log: ProxyAttemptLog) => void
 ): Promise<GitHubFetchResult> {
   if (!isGitHubConfigured(settings, false)) {
     throw new Error('GitHub Owner, Repository, और File Path भरें।');
   }
 
-  const headers: Record<string, string> = {
-    Accept: 'application/vnd.github+json',
-    'X-GitHub-Api-Version': '2022-11-28',
-  };
-  if (settings.token.trim()) {
-    headers.Authorization = `Bearer ${settings.token.trim()}`;
+  const targetUrl = buildTargetGitHubApiUrl(settings, true);
+
+  // If Dual Mirror Read mode is selected, read config.json from fast CDN mirror first,
+  // while still attempting to fetch SHA from Contents API (or configured Worker) so PUT remains ready.
+  if (
+    proxySettings.mode === 'mirror_read' &&
+    proxySettings.rawMirrorUrl.trim()
+  ) {
+    const mirrorUrl = resolveMirrorTemplateUrl(
+      proxySettings.rawMirrorUrl,
+      settings
+    );
+    const started = performance.now();
+    try {
+      const mirrorRes = await fetchWithTimeout(
+        mirrorUrl,
+        { method: 'GET', cache: 'no-store' },
+        proxySettings.timeoutMs
+      );
+      const latencyMs = Math.round(performance.now() - started);
+
+      onAttempt?.({
+        id: `${Date.now()}-mirror`,
+        timestamp: new Date().toLocaleTimeString(),
+        operation: 'GET',
+        routeLabel: 'CDN Raw Mirror',
+        targetUrl: mirrorUrl,
+        statusCode: mirrorRes.status,
+        latencyMs,
+        ok: mirrorRes.ok,
+        detail: mirrorRes.ok
+          ? `HTTP ${mirrorRes.status} Mirror JSON`
+          : `HTTP ${mirrorRes.status} Mirror failed`,
+      });
+
+      if (mirrorRes.ok) {
+        const parsedMirror = (await mirrorRes.json()) as unknown;
+        let resolvedSha = loadSavedSha();
+        try {
+          const shaAttempt = await executeProxiedRequest({
+            operation: 'GET',
+            targetUrl,
+            proxy: proxySettings,
+            ghSettings: settings,
+            baseHeaders: {
+              Accept: 'application/vnd.github+json',
+              'X-GitHub-Api-Version': '2022-11-28',
+            },
+            onAttempt,
+          });
+          if (shaAttempt.response.ok) {
+            const meta = (await shaAttempt.response.json()) as { sha?: string };
+            if (meta.sha) resolvedSha = meta.sha;
+          }
+        } catch {
+          // Keep existing cached SHA if Contents API metadata check fails on restricted ISP
+        }
+
+        return {
+          config: normalizeConfig(parsedMirror),
+          sha: resolvedSha,
+          routeLabel: 'CDN Raw Mirror',
+          latencyMs,
+        };
+      }
+    } catch (err) {
+      const latencyMs = Math.round(performance.now() - started);
+      onAttempt?.({
+        id: `${Date.now()}-mirror-err`,
+        timestamp: new Date().toLocaleTimeString(),
+        operation: 'GET',
+        routeLabel: 'CDN Raw Mirror',
+        targetUrl: mirrorUrl,
+        statusCode: null,
+        latencyMs,
+        ok: false,
+        detail: err instanceof Error ? err.message : 'Mirror fetch failed',
+      });
+    }
   }
 
-  const url = buildContentsUrl(settings, true);
-  const response = await fetch(url, {
-    method: 'GET',
-    headers,
-    cache: 'no-store',
+  const { response, routeLabel, latencyMs } = await executeProxiedRequest({
+    operation: 'GET',
+    targetUrl,
+    proxy: proxySettings,
+    ghSettings: settings,
+    baseHeaders: {
+      Accept: 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+    },
+    onAttempt,
   });
 
   if (!response.ok) {
     const errBody = await response.json().catch(() => ({}));
     const apiMessage =
-      typeof errBody?.message === 'string' ? errBody.message : response.statusText;
+      typeof errBody?.message === 'string'
+        ? errBody.message
+        : response.statusText;
     if (response.status === 401 || response.status === 403) {
       throw new Error(`GitHub Auth Error (${response.status}): ${apiMessage}`);
     }
@@ -171,6 +253,8 @@ export async function fetchGitHubConfig(
     config: normalizeConfig(parsed),
     sha: data.sha,
     htmlUrl: data.html_url,
+    routeLabel,
+    latencyMs,
   };
 }
 
@@ -178,13 +262,17 @@ export interface GitHubPublishResult {
   sha: string;
   commitSha: string;
   commitUrl?: string;
+  routeLabel: string;
+  latencyMs: number;
 }
 
 export async function publishGitHubConfig(
   settings: GitHubSettings,
   config: ShayariLokConfig,
   currentSha: string,
-  commitMessage?: string
+  commitMessage?: string,
+  proxySettings: ProxySettings = DEFAULT_PROXY_SETTINGS,
+  onAttempt?: (log: ProxyAttemptLog) => void
 ): Promise<GitHubPublishResult> {
   if (!isGitHubConfigured(settings, true)) {
     throw new Error(
@@ -207,22 +295,27 @@ export async function publishGitHubConfig(
     payload.sha = currentSha.trim();
   }
 
-  const url = buildContentsUrl(settings, false);
-  const response = await fetch(url, {
-    method: 'PUT',
-    headers: {
+  const targetUrl = buildTargetGitHubApiUrl(settings, false);
+  const { response, routeLabel, latencyMs } = await executeProxiedRequest({
+    operation: 'PUT',
+    targetUrl,
+    proxy: proxySettings,
+    ghSettings: settings,
+    baseHeaders: {
       Accept: 'application/vnd.github+json',
-      Authorization: `Bearer ${settings.token.trim()}`,
       'Content-Type': 'application/json',
       'X-GitHub-Api-Version': '2022-11-28',
     },
     body: JSON.stringify(payload),
+    onAttempt,
   });
 
   if (!response.ok) {
     const errBody = await response.json().catch(() => ({}));
     const apiMessage =
-      typeof errBody?.message === 'string' ? errBody.message : response.statusText;
+      typeof errBody?.message === 'string'
+        ? errBody.message
+        : response.statusText;
     if (response.status === 409 || response.status === 422) {
       throw new Error(
         `SHA Conflict (${response.status}): रिमोट फ़ाइल बदल चुकी है। पहले "Sync from GitHub" करें। (${apiMessage})`
@@ -250,5 +343,8 @@ export async function publishGitHubConfig(
     sha: newSha,
     commitSha: result.commit?.sha ?? newSha,
     commitUrl: result.commit?.html_url,
+    routeLabel,
+    latencyMs,
   };
 }
+

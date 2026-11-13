@@ -12,6 +12,13 @@ export default defineConfig(() => {
       outDir: 'dist',
       assetsDir: 'assets',
       sourcemap: false,
+      rollupOptions: {
+        input: {
+          main: path.resolve(__dirname, 'index.html'),
+          website: path.resolve(__dirname, 'website.html'),
+          privacy: path.resolve(__dirname, 'privacy.html'),
+        },
+      },
     },
     resolve: {
       alias: {

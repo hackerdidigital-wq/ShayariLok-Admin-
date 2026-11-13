@@ -1,10 +1,13 @@
-import React from 'react';
-import { ExternalLink, Globe, Shield, Smartphone } from 'lucide-react';
+import React, { useState } from 'react';
+import { Check, Copy, ExternalLink, Globe, Shield, Smartphone } from 'lucide-react';
 import type { ShayariLokConfig } from '../types/config';
+import { isLegacyPlaceholderPolicyUrl } from '../utils/siteRoutes';
 
 interface MonetizationSectionProps {
   config: ShayariLokConfig;
   onUpdate: (patch: Partial<ShayariLokConfig>) => void;
+  hostedPrivacyUrl?: string;
+  hostedWebsiteUrl?: string;
 }
 
 const GOOGLE_TEST_BANNER = 'ca-app-pub-3940256099942544/6300978111';
@@ -13,7 +16,30 @@ const GOOGLE_TEST_INTERSTITIAL = 'ca-app-pub-3940256099942544/1033173712';
 export const MonetizationSection: React.FC<MonetizationSectionProps> = ({
   config,
   onUpdate,
+  hostedPrivacyUrl,
+  hostedWebsiteUrl,
 }) => {
+  const [copiedPolicy, setCopiedPolicy] = useState(false);
+  const usingLegacyPlaceholder = isLegacyPlaceholderPolicyUrl(
+    config.privacy_policy_url
+  );
+  const effectiveOpenHref =
+    usingLegacyPlaceholder && hostedPrivacyUrl
+      ? hostedPrivacyUrl
+      : config.privacy_policy_url || hostedPrivacyUrl || './privacy.html';
+
+  const handleCopyHostedPolicy = async () => {
+    const target = hostedPrivacyUrl || config.privacy_policy_url;
+    if (!target) return;
+    try {
+      await navigator.clipboard.writeText(target);
+      setCopiedPolicy(true);
+      window.setTimeout(() => setCopiedPolicy(false), 1800);
+    } catch {
+      // Ignore clipboard failure
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* AdMob Master Controls */}
@@ -131,10 +157,10 @@ export const MonetizationSection: React.FC<MonetizationSectionProps> = ({
           <Globe className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />
           <div>
             <h2 className="font-display text-base font-semibold text-slate-900">
-              Social Community & Privacy Links
+              Social Community &amp; Privacy Links
             </h2>
             <p className="text-sm text-slate-500">
-              Telegram/Instagram कम्युनिटी लिंक और Google Play Privacy Policy URL।
+              Telegram/Instagram कम्युनिटी लिंक और Google Play / App Privacy Policy URL।
             </p>
           </div>
         </div>
@@ -174,7 +200,7 @@ export const MonetizationSection: React.FC<MonetizationSectionProps> = ({
             </div>
           </div>
 
-          <div>
+          <div className="space-y-2">
             <label
               htmlFor="privacy-policy-input"
               className="block text-sm font-medium text-slate-700 mb-1.5"
@@ -193,24 +219,69 @@ export const MonetizationSection: React.FC<MonetizationSectionProps> = ({
                 onChange={(e) =>
                   onUpdate({ privacy_policy_url: e.target.value })
                 }
-                placeholder="https://shayarilok.in/privacy-policy"
+                placeholder={hostedPrivacyUrl || 'https://your-domain/privacy.html'}
                 className="w-full px-3.5 py-2.5 text-sm font-mono bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500"
               />
-              {config.privacy_policy_url && (
-                <a
-                  href={config.privacy_policy_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  aria-label="Open privacy policy link in new tab"
-                  className="p-2.5 border border-slate-200 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-50 shrink-0"
-                >
-                  <Shield className="w-4 h-4" />
-                </a>
-              )}
+              <a
+                href={effectiveOpenHref}
+                target="_blank"
+                rel="noreferrer"
+                aria-label="Open hosted privacy policy in new tab"
+                className="p-2.5 border border-slate-200 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-50 shrink-0"
+              >
+                <Shield className="w-4 h-4" />
+              </a>
             </div>
+
+            {hostedPrivacyUrl && (
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => onUpdate({ privacy_policy_url: hostedPrivacyUrl })}
+                  className="px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100"
+                >
+                  Use Our Hosted Privacy URL
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleCopyHostedPolicy()}
+                  className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200"
+                >
+                  {copiedPolicy ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-emerald-700" />
+                      <span className="text-emerald-700">Copied</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>Copy Hosted URL</span>
+                    </>
+                  )}
+                </button>
+                {hostedWebsiteUrl && (
+                  <a
+                    href={hostedWebsiteUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"
+                  >
+                    <span>Open Live Website</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                )}
+              </div>
+            )}
+
+            {usingLegacyPlaceholder && (
+              <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                डिफ़ॉल्ट <code className="font-mono">shayarilok.in/privacy-policy</code> की जगह ऊपर दिया <strong>Use Our Hosted Privacy URL</strong> दबाएँ ताकि ऐप और यूजर सीधे हमारी होस्टेड Privacy Policy और Website पर आएँ।
+              </p>
+            )}
           </div>
         </div>
       </section>
     </div>
   );
 };
+

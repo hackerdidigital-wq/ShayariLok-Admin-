@@ -25,3 +25,28 @@
 .tabular-nums {
   font-variant-numeric: tabular-nums;
 }
+
+html[data-devanagari='large'] textarea,
+html[data-devanagari='large'] .shayari-prose {
+  font-size: 1.0625rem;
+  line-height: 1.75;
+}
+
+@media print {
+  aside,
+  header,
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    background: #ffffff !important;
+  }
+
+  .print-sheet {
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+  }
+}
+

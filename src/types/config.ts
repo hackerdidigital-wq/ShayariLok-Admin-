@@ -55,7 +55,10 @@ export type AdminSection =
   | 'shayari'
   | 'notifications'
   | 'monetization'
-  | 'sync';
+  | 'proxy'
+  | 'sync'
+  | 'website'
+  | 'settings';
 
 export type SyncStatus =
   | 'idle'
@@ -63,3 +66,94 @@ export type SyncStatus =
   | 'synced'
   | 'publishing'
   | 'error';
+
+export type ProxyMode =
+  | 'direct'
+  | 'cloudflare_worker'
+  | 'custom_prefix'
+  | 'mirror_read';
+
+export type ProxyNodeKind = 'worker' | 'prefix' | 'mirror';
+
+export interface ProxyNode {
+  id: string;
+  label: string;
+  url: string;
+  enabled: boolean;
+  kind: ProxyNodeKind;
+}
+
+export interface ProxySettings {
+  mode: ProxyMode;
+  primaryProxyUrl: string;
+  rawMirrorUrl: string;
+  fallbackNodes: ProxyNode[];
+  timeoutMs: number;
+  maxRetries: number;
+  autoFallbackToDirect: boolean;
+  forwardPatThroughProxy: boolean;
+  customHeaderName: string;
+  customHeaderValue: string;
+}
+
+export interface ProxyAttemptLog {
+  id: string;
+  timestamp: string;
+  operation: 'GET' | 'PUT' | 'PING';
+  routeLabel: string;
+  targetUrl: string;
+  statusCode: number | null;
+  latencyMs: number;
+  ok: boolean;
+  detail: string;
+}
+
+export interface ProxyDiagnosticResult {
+  id: string;
+  label: string;
+  kind: 'direct' | ProxyNodeKind;
+  url: string;
+  ok: boolean;
+  statusCode: number | null;
+  latencyMs: number | null;
+  detail: string;
+}
+
+export interface SuvicharItem {
+  id: number;
+  text: string;
+  author: string;
+  category: string;
+}
+
+export type PhotoShayariThemeId =
+  | 'sunset_love'
+  | 'morning_chai'
+  | 'monsoon_rain'
+  | 'journal_ink';
+
+export interface PhotoShayariCard {
+  id: number;
+  text: string;
+  author: string;
+  category: string;
+  theme: PhotoShayariThemeId;
+}
+
+export interface WebsiteVisibilityControls {
+  showNotificationBell: boolean;
+  showAnnouncementBanner: boolean;
+  showSuvicharSection: boolean;
+  showPhotoShayariSection: boolean;
+  showMaintenanceNotice: boolean;
+}
+
+export interface WebsiteContentSettings {
+  heroHeadline: string;
+  heroSubheadline: string;
+  controls: WebsiteVisibilityControls;
+  suvichar_list: SuvicharItem[];
+  photo_shayari_list: PhotoShayariCard[];
+}
+
+

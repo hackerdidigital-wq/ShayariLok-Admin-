@@ -16,13 +16,24 @@ import {
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import type {
   GitHubSettings,
+  ProxySettings,
   PublishLogEntry,
   ShayariLokConfig,
+  WebsiteContentSettings,
 } from '../types/config';
 import { normalizeConfig, prepareDraftForFirestore } from '../utils/configHelpers';
+import {
+  normalizeProxySettings,
+  sanitizeProxySettingsForFirestore,
+} from '../utils/proxyEngine';
+import {
+  normalizeWebsiteContent,
+  preparePublicSiteForFirestore,
+} from '../utils/websiteContent';
 
 const SETTINGS_DOC_ID = 'github';
 const DRAFT_DOC_ID = 'default';
+const PROXY_DOC_ID = 'default';
 
 export async function ensureUserProfile(user: User): Promise<void> {
   if (!db) return;
@@ -80,6 +91,40 @@ export async function saveCloudRepoSettings(
     });
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+export async function saveCloudProxyProfile(
+  uid: string,
+  proxySettings: ProxySettings
+): Promise<void> {
+  if (!db) throw new Error('Firestore is not available.');
+  const path = `users/${uid}/proxyProfiles/${PROXY_DOC_ID}`;
+  const ref = doc(db, 'users', uid, 'proxyProfiles', PROXY_DOC_ID);
+  const safe = sanitizeProxySettingsForFirestore(proxySettings);
+  try {
+    await setDoc(ref, {
+      ownerId: uid,
+      ...safe,
+      updatedAt: serverTimestamp(),
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+export async function loadCloudProxyProfile(
+  uid: string
+): Promise<ProxySettings | null> {
+  if (!db) throw new Error('Firestore is not available.');
+  const path = `users/${uid}/proxyProfiles/${PROXY_DOC_ID}`;
+  const ref = doc(db, 'users', uid, 'proxyProfiles', PROXY_DOC_ID);
+  try {
+    const snap = await getDoc(ref);
+    if (!snap.exists()) return null;
+    return normalizeProxySettings(snap.data());
+  } catch (error) {
+    handleFirestoreError(error, OperationType.GET, path);
   }
 }
 
@@ -223,3 +268,81 @@ export function subscribeUserWorkspace(
     unsubLogs();
   };
 }
+
+export interface PublicSiteSnapshot {
+  config: ShayariLokConfig;
+  websiteContent: WebsiteContentSettings;
+  organizationName: string;
+  supportEmail: string;
+}
+
+export async function publishPublicWebsiteState(
+  uid: string,
+  config: ShayariLokConfig,
+  websiteContent: WebsiteContentSettings,
+  organizationName: string,
+  supportEmail: string
+): Promise<void> {
+  if (!db) throw new Error('Firestore is not available.');
+  const path = `publicSites/${uid}`;
+  const ref = doc(db, 'publicSites', uid);
+  const safe = preparePublicSiteForFirestore(
+    config,
+    websiteContent,
+    organizationName,
+    supportEmail
+  );
+  try {
+    await setDoc(ref, {
+      ownerId: uid,
+      ...safe,
+      updatedAt: serverTimestamp(),
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+export function subscribePublicWebsiteState(
+  siteId: string,
+  onData: (snapshot: PublicSiteSnapshot) => void,
+  onError?: (error: Error) => void,
+  onMissing?: () => void
+): Unsubscribe {
+  if (!db || !siteId) return () => {};
+  const path = `publicSites/${siteId}`;
+  const ref = doc(db, 'publicSites', siteId);
+
+  return onSnapshot(
+    ref,
+    (snap) => {
+      if (!snap.exists()) {
+        if (onMissing) onMissing();
+        return;
+      }
+      const d = snap.data();
+      onData({
+        config: normalizeConfig(d),
+        websiteContent: normalizeWebsiteContent({
+          heroHeadline: d.heroHeadline,
+          heroSubheadline: d.heroSubheadline,
+          controls: d.websiteControls,
+          suvichar_list: d.suvichar_list,
+          photo_shayari_list: d.photo_shayari_list,
+        }),
+        organizationName: String(d.organizationName ?? 'CyberKing Studios'),
+        supportEmail: String(d.supportEmail ?? 'support@shayarilok.in'),
+      });
+    },
+    (error) => {
+      try {
+        handleFirestoreError(error, OperationType.GET, path);
+      } catch (wrapped) {
+        if (onError && wrapped instanceof Error) {
+          onError(wrapped);
+        }
+      }
+    }
+  );
+}
+

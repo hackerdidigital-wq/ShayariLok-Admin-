@@ -4,12 +4,17 @@ import {
   BookOpenText,
   Coins,
   GitBranch,
+  Globe,
   LayoutDashboard,
   RefreshCw,
+  Settings,
+  Waypoints,
   X,
 } from 'lucide-react';
 import type { AdminSection, SyncStatus } from '../types/config';
 import { PACKAGE_ID } from '../utils/configHelpers';
+import type { EnterpriseTabId } from '../utils/enterpriseSettings';
+import { AdminBrandMenu } from './AdminBrandMenu';
 
 interface SidebarProps {
   activeSection: AdminSection;
@@ -23,6 +28,11 @@ interface SidebarProps {
   onDiscardChanges: () => void;
   mobileOpen: boolean;
   onCloseMobile: () => void;
+  organizationName: string;
+  environment: 'production' | 'staging';
+  hasPin: boolean;
+  onOpenEnterpriseSetting: (tab: EnterpriseTabId | null) => void;
+  onLockNow: () => void;
 }
 
 const NAV_ITEMS: Array<{
@@ -34,7 +44,10 @@ const NAV_ITEMS: Array<{
   { id: 'shayari', label: 'Shayari Manager', icon: BookOpenText },
   { id: 'notifications', label: 'Notifications & Alerts', icon: Bell },
   { id: 'monetization', label: 'Monetization & Links', icon: Coins },
+  { id: 'website', label: 'Live Websites', icon: Globe },
+  { id: 'proxy', label: 'Proxy & Routing', icon: Waypoints },
   { id: 'sync', label: 'GitHub Sync & Auth', icon: GitBranch },
+  { id: 'settings', label: 'Enterprise Settings', icon: Settings },
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -49,24 +62,40 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onDiscardChanges,
   mobileOpen,
   onCloseMobile,
+  organizationName,
+  environment,
+  hasPin,
+  onOpenEnterpriseSetting,
+  onLockNow,
 }) => {
   const content = (
     <div className="flex h-full flex-col justify-between bg-white border-r border-slate-200 w-64">
       <div>
-        <div className="flex items-center justify-between px-5 h-16 border-b border-slate-200">
-          <div className="min-w-0">
-            <div className="font-display text-lg font-bold tracking-tight text-slate-900 truncate">
-              Shayari Lok
+        <div className="flex items-center justify-between gap-2 px-5 h-16 border-b border-slate-200">
+          <div className="min-w-0 flex items-center gap-1.5">
+            <div className="min-w-0">
+              <div className="font-display text-lg font-bold tracking-tight text-slate-900 truncate">
+                Shayari Lok
+              </div>
+              <div className="font-mono text-[11px] text-slate-500 truncate">
+                {organizationName} · {PACKAGE_ID}
+              </div>
             </div>
-            <div className="font-mono text-[11px] text-slate-500 truncate">
-              {PACKAGE_ID}
-            </div>
+            <AdminBrandMenu
+              environment={environment}
+              hasPin={hasPin}
+              onLockNow={onLockNow}
+              onSelectSetting={(tab) => {
+                onCloseMobile();
+                onOpenEnterpriseSetting(tab);
+              }}
+            />
           </div>
           <button
             type="button"
             onClick={onCloseMobile}
             aria-label="Close navigation menu"
-            className="lg:hidden p-2 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100"
+            className="lg:hidden p-2 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 shrink-0"
           >
             <X className="w-5 h-5" />
           </button>

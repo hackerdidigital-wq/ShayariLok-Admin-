@@ -1,16 +1,82 @@
 import React, { useMemo, useState } from 'react';
-import { Bell, Megaphone, Pencil, Plus, Trash2, X } from 'lucide-react';
-import type { NotificationItem, ShayariLokConfig } from '../types/config';
+import type { User } from 'firebase/auth';
+import {
+  Bell,
+  CloudUpload,
+  ExternalLink,
+  Image as ImageIcon,
+  Megaphone,
+  Pencil,
+  Plus,
+  Sliders,
+  Sparkles,
+  Trash2,
+  X,
+} from 'lucide-react';
+import type {
+  NotificationItem,
+  PhotoShayariCard,
+  PhotoShayariThemeId,
+  ShayariLokConfig,
+  SuvicharItem,
+  WebsiteContentSettings,
+  WebsiteVisibilityControls,
+} from '../types/config';
 import { getNextId } from '../utils/configHelpers';
+import { PHOTO_THEME_META } from '../utils/websiteContent';
 
 interface NotificationsSectionProps {
   config: ShayariLokConfig;
   onUpdate: (patch: Partial<ShayariLokConfig>) => void;
+  websiteContent: WebsiteContentSettings;
+  onUpdateWebsiteContent: (next: WebsiteContentSettings) => void;
+  standaloneWebsiteUrl: string;
+  user: User | null;
+  liveSyncing: boolean;
+  onSyncLiveWebsiteNow: () => Promise<void>;
 }
+
+const CONTROL_ITEMS: Array<{
+  key: keyof WebsiteVisibilityControls;
+  label: string;
+  description: string;
+}> = [
+  {
+    key: 'showNotificationBell',
+    label: 'Website Notification Bell',
+    description: 'वेबसाइट हेडर में लाइव बेल आइकॉन और अलर्ट ड्रॉअर दिखाएँ।',
+  },
+  {
+    key: 'showAnnouncementBanner',
+    label: 'Announcement Banner',
+    description: 'होम पेज और बेल ड्रॉअर में मुख्य अनाउंसमेंट दिखाएँ।',
+  },
+  {
+    key: 'showPhotoShayariSection',
+    label: 'Photo Shayari Cards',
+    description: 'वेबसाइट पर फोटो बैकग्राउंड वाली डिज़ाइन शायरियाँ दिखाएँ।',
+  },
+  {
+    key: 'showSuvicharSection',
+    label: 'Daily Suvichar Section',
+    description: 'होम पेज व नेविगेशन में आज के सुविचार (Suvichar) दिखाएँ।',
+  },
+  {
+    key: 'showMaintenanceNotice',
+    label: 'Maintenance Notice Strip',
+    description: 'जब Maintenance Mode ऑन हो तब वेबसाइट पर पीली चेतावनी दिखाएँ।',
+  },
+];
 
 export const NotificationsSection: React.FC<NotificationsSectionProps> = ({
   config,
   onUpdate,
+  websiteContent,
+  onUpdateWebsiteContent,
+  standaloneWebsiteUrl,
+  user,
+  liveSyncing,
+  onSyncLiveWebsiteNow,
 }) => {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [title, setTitle] = useState('');
@@ -18,6 +84,20 @@ export const NotificationsSection: React.FC<NotificationsSectionProps> = ({
   const [badge, setBadge] = useState('Shayari Alert');
   const [timeLabel, setTimeLabel] = useState('Today');
   const [error, setError] = useState('');
+
+  // Suvichar Quick Form
+  const [suvText, setSuvText] = useState('');
+  const [suvAuthor, setSuvAuthor] = useState('');
+  const [suvCategory, setSuvCategory] = useState('प्रेरणा');
+  const [suvError, setSuvError] = useState('');
+
+  // Photo Shayari Quick Form
+  const [photoText, setPhotoText] = useState('');
+  const [photoAuthor, setPhotoAuthor] = useState('');
+  const [photoCategory, setPhotoCategory] = useState('Love');
+  const [photoTheme, setPhotoTheme] =
+    useState<PhotoShayariThemeId>('sunset_love');
+  const [photoError, setPhotoError] = useState('');
 
   const nextId = useMemo(
     () => getNextId(config.notifications),
@@ -87,19 +167,214 @@ export const NotificationsSection: React.FC<NotificationsSectionProps> = ({
     }
   };
 
+  const toggleWebsiteControl = (key: keyof WebsiteVisibilityControls) => {
+    onUpdateWebsiteContent({
+      ...websiteContent,
+      controls: {
+        ...websiteContent.controls,
+        [key]: !websiteContent.controls[key],
+      },
+    });
+  };
+
+  const handleAddSuvichar = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!suvText.trim()) {
+      setSuvError('कृपया सुविचार टेक्स्ट लिखें।');
+      return;
+    }
+    const maxId = websiteContent.suvichar_list.reduce(
+      (max, item) => (item.id > max ? item.id : max),
+      0
+    );
+    const created: SuvicharItem = {
+      id: maxId + 1,
+      text: suvText.trim(),
+      author: suvAuthor.trim() || 'शायरी लोक',
+      category: suvCategory.trim() || 'प्रेरणा',
+    };
+    onUpdateWebsiteContent({
+      ...websiteContent,
+      suvichar_list: [created, ...websiteContent.suvichar_list],
+    });
+    setSuvText('');
+    setSuvAuthor('');
+    setSuvError('');
+  };
+
+  const handleDeleteSuvichar = (id: number) => {
+    onUpdateWebsiteContent({
+      ...websiteContent,
+      suvichar_list: websiteContent.suvichar_list.filter((s) => s.id !== id),
+    });
+  };
+
+  const handleAddPhotoShayari = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!photoText.trim()) {
+      setPhotoError('कृपया फोटो शायरी टेक्स्ट लिखें।');
+      return;
+    }
+    const maxId = websiteContent.photo_shayari_list.reduce(
+      (max, item) => (item.id > max ? item.id : max),
+      0
+    );
+    const created: PhotoShayariCard = {
+      id: maxId + 1,
+      text: photoText.trim(),
+      author: photoAuthor.trim() || 'शायरी लोक',
+      category: photoCategory.trim() || 'Love',
+      theme: photoTheme,
+    };
+    onUpdateWebsiteContent({
+      ...websiteContent,
+      photo_shayari_list: [created, ...websiteContent.photo_shayari_list],
+    });
+    setPhotoText('');
+    setPhotoAuthor('');
+    setPhotoError('');
+  };
+
+  const handleDeletePhotoShayari = (id: number) => {
+    onUpdateWebsiteContent({
+      ...websiteContent,
+      photo_shayari_list: websiteContent.photo_shayari_list.filter(
+        (p) => p.id !== id
+      ),
+    });
+  };
+
   return (
     <div className="space-y-6">
-      {/* In-App Announcement Banner Editor */}
+      {/* Real-Time Website Notification & Section Control Center */}
+      <section className="bg-white border border-slate-200 rounded-xl p-6 space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+          <div className="flex items-start gap-3">
+            <Sliders className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />
+            <div>
+              <h2 className="font-display text-base font-semibold text-slate-900">
+                Real-Time Website Notification &amp; Section Controller
+              </h2>
+              <p className="text-sm text-slate-500">
+                यहाँ से किए गए हर बदलाव और टॉगल का असर आपकी लाइव वेबसाइट (फोटो शायरी, सुविचार और नोटिफिकेशन बेल) पर तुरंत रीयल-टाइम होता है।
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            {user && (
+              <button
+                type="button"
+                disabled={liveSyncing}
+                onClick={() => void onSyncLiveWebsiteNow()}
+                className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 disabled:opacity-60"
+              >
+                <CloudUpload className="w-3.5 h-3.5" />
+                <span>
+                  {liveSyncing ? 'Syncing Cloud...' : 'Push Cloud Live Sync'}
+                </span>
+              </button>
+            )}
+
+            <a
+              href={standaloneWebsiteUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700"
+            >
+              <span>Open Separate Website</span>
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {CONTROL_ITEMS.map((item) => {
+            const active = websiteContent.controls[item.key];
+            return (
+              <label
+                key={item.key}
+                className={`flex items-start justify-between gap-3 p-3.5 rounded-xl border cursor-pointer transition-colors ${
+                  active
+                    ? 'bg-indigo-50/45 border-indigo-200'
+                    : 'bg-slate-50 border-slate-200'
+                }`}
+              >
+                <div className="space-y-0.5">
+                  <div className="text-sm font-semibold text-slate-900">
+                    {item.label}
+                  </div>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    {item.description}
+                  </p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={active}
+                  onChange={() => toggleWebsiteControl(item.key)}
+                  aria-label={item.label}
+                  className="mt-1 w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 shrink-0"
+                />
+              </label>
+            );
+          })}
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-1">
+          <div>
+            <label
+              htmlFor="website-hero-headline"
+              className="block text-xs font-semibold text-slate-700 mb-1"
+            >
+              Website Hero Headline (Live)
+            </label>
+            <input
+              id="website-hero-headline"
+              type="text"
+              value={websiteContent.heroHeadline}
+              onChange={(e) =>
+                onUpdateWebsiteContent({
+                  ...websiteContent,
+                  heroHeadline: e.target.value,
+                })
+              }
+              className="w-full px-3.5 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500"
+            />
+          </div>
+          <div>
+            <label
+              htmlFor="website-hero-subheadline"
+              className="block text-xs font-semibold text-slate-700 mb-1"
+            >
+              Website Hero Subheadline (Live)
+            </label>
+            <input
+              id="website-hero-subheadline"
+              type="text"
+              value={websiteContent.heroSubheadline}
+              onChange={(e) =>
+                onUpdateWebsiteContent({
+                  ...websiteContent,
+                  heroSubheadline: e.target.value,
+                })
+              }
+              className="w-full px-3.5 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500"
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* In-App & Website Announcement Banner Editor */}
       <section className="bg-white border border-slate-200 rounded-xl p-6 space-y-5">
         <div className="flex items-start justify-between gap-4 pb-4 border-b border-slate-100">
           <div className="flex items-start gap-3">
             <Megaphone className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />
             <div>
               <h2 className="font-display text-base font-semibold text-slate-900">
-                Home Screen Announcement Banner
+                Home Screen &amp; Website Announcement Banner
               </h2>
               <p className="text-sm text-slate-500">
-                यूजर ऐप में दिखने वाला मुख्य अनाउंसमेंट शीर्षक और संदेश।
+                यूजर ऐप और लाइव वेबसाइट दोनों में दिखने वाला मुख्य अनाउंसमेंट शीर्षक और संदेश।
               </p>
             </div>
           </div>
@@ -151,14 +426,14 @@ export const NotificationsSection: React.FC<NotificationsSectionProps> = ({
 
           <div className="lg:col-span-5 bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2">
             <div className="text-xs font-medium text-slate-500">
-              User App Banner Preview
+              Live App &amp; Website Banner Preview
             </div>
             <div className="font-display text-sm font-semibold text-slate-900">
               {config.announcement_title || 'Announcement Title'}
             </div>
             <p className="text-xs leading-relaxed text-slate-600">
               {config.announcement_message ||
-                'Your announcement message will appear here inside the Android app.'}
+                'Your announcement message will appear here inside the Android app and Website.'}
             </p>
           </div>
         </div>
@@ -295,7 +570,7 @@ export const NotificationsSection: React.FC<NotificationsSectionProps> = ({
             <div className="flex items-center gap-2">
               <Bell className="w-4 h-4 text-slate-500" />
               <h2 className="font-display text-base font-semibold text-slate-900">
-                App Bell Notifications ({config.notifications.length})
+                App &amp; Website Bell Notifications ({config.notifications.length})
               </h2>
             </div>
           </div>
@@ -306,7 +581,7 @@ export const NotificationsSection: React.FC<NotificationsSectionProps> = ({
                 कोई नोटिफिकेशन नहीं है
               </p>
               <p className="text-xs text-slate-500 mt-1">
-                यूजर ऐप के बेल आइकॉन में दिखाने के लिए बाएँ फ़ॉर्म से नया अलर्ट जोड़ें।
+                यूजर ऐप और वेबसाइट के बेल आइकॉन में दिखाने के लिए बाएँ फ़ॉर्म से नया अलर्ट जोड़ें।
               </p>
             </div>
           ) : (
@@ -315,7 +590,9 @@ export const NotificationsSection: React.FC<NotificationsSectionProps> = ({
                 <article
                   key={item.id}
                   className={`p-4 transition-colors ${
-                    editingId === item.id ? 'bg-indigo-50/50' : 'bg-white hover:bg-slate-50/70'
+                    editingId === item.id
+                      ? 'bg-indigo-50/50'
+                      : 'bg-white hover:bg-slate-50/70'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-4">
@@ -360,6 +637,184 @@ export const NotificationsSection: React.FC<NotificationsSectionProps> = ({
               ))}
             </div>
           )}
+        </section>
+      </div>
+
+      {/* Live Website Photo Shayari & Suvichar Publishers */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
+        {/* Photo Shayari Studio Manager */}
+        <section className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
+          <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100">
+            <ImageIcon className="w-5 h-5 text-indigo-600" />
+            <div>
+              <h2 className="font-display text-base font-semibold text-slate-900">
+                Website Photo Shayari Studio ({websiteContent.photo_shayari_list.length})
+              </h2>
+              <p className="text-xs text-slate-500">
+                फोटो बैकग्राउंड के साथ वेबसाइट पर दिखने वाली शायरियाँ जोड़ें या हटाएँ।
+              </p>
+            </div>
+          </div>
+
+          <form onSubmit={handleAddPhotoShayari} className="space-y-3">
+            <textarea
+              rows={2}
+              value={photoText}
+              onChange={(e) => {
+                setPhotoText(e.target.value);
+                if (photoError) setPhotoError('');
+              }}
+              placeholder="फोटो के ऊपर दिखने वाली शायरी लिखें..."
+              className="w-full px-3.5 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500"
+            />
+            <div className="grid grid-cols-3 gap-2.5">
+              <input
+                type="text"
+                value={photoCategory}
+                onChange={(e) => setPhotoCategory(e.target.value)}
+                placeholder="Category (Love)"
+                className="px-3 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500"
+              />
+              <input
+                type="text"
+                value={photoAuthor}
+                onChange={(e) => setPhotoAuthor(e.target.value)}
+                placeholder="Author"
+                className="px-3 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500"
+              />
+              <select
+                value={photoTheme}
+                onChange={(e) =>
+                  setPhotoTheme(e.target.value as PhotoShayariThemeId)
+                }
+                aria-label="Photo backdrop theme"
+                className="px-2.5 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500"
+              >
+                {(Object.keys(PHOTO_THEME_META) as PhotoShayariThemeId[]).map(
+                  (key) => (
+                    <option key={key} value={key}>
+                      {PHOTO_THEME_META[key].label}
+                    </option>
+                  )
+                )}
+              </select>
+            </div>
+            {photoError && (
+              <div className="text-xs text-red-700">{photoError}</div>
+            )}
+            <button
+              type="submit"
+              className="w-full flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Add Photo Shayari to Website</span>
+            </button>
+          </form>
+
+          <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl max-h-64 overflow-y-auto">
+            {websiteContent.photo_shayari_list.map((card) => (
+              <div
+                key={card.id}
+                className="p-3.5 flex items-start justify-between gap-3"
+              >
+                <div className="min-w-0 space-y-1">
+                  <div className="text-[11px] font-mono text-slate-500">
+                    {card.category} · {PHOTO_THEME_META[card.theme].label} ·{' '}
+                    {card.author}
+                  </div>
+                  <p className="text-xs text-slate-800 whitespace-pre-line line-clamp-2">
+                    {card.text}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleDeletePhotoShayari(card.id)}
+                  aria-label={`Delete photo shayari #${card.id}`}
+                  className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg shrink-0"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Suvichar Manager */}
+        <section className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
+          <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100">
+            <Sparkles className="w-5 h-5 text-amber-600" />
+            <div>
+              <h2 className="font-display text-base font-semibold text-slate-900">
+                Website Suvichar Manager ({websiteContent.suvichar_list.length})
+              </h2>
+              <p className="text-xs text-slate-500">
+                लाइव वेबसाइट के सुविचार सेक्शन के लिए प्रेरक विचार जोड़ें या प्रबंधित करें।
+              </p>
+            </div>
+          </div>
+
+          <form onSubmit={handleAddSuvichar} className="space-y-3">
+            <textarea
+              rows={2}
+              value={suvText}
+              onChange={(e) => {
+                setSuvText(e.target.value);
+                if (suvError) setSuvError('');
+              }}
+              placeholder="नया हिंदी सुविचार लिखें..."
+              className="w-full px-3.5 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500"
+            />
+            <div className="grid grid-cols-2 gap-2.5">
+              <input
+                type="text"
+                value={suvCategory}
+                onChange={(e) => setSuvCategory(e.target.value)}
+                placeholder="Category (सफलता)"
+                className="px-3 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500"
+              />
+              <input
+                type="text"
+                value={suvAuthor}
+                onChange={(e) => setSuvAuthor(e.target.value)}
+                placeholder="लेखक / स्रोत"
+                className="px-3 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500"
+              />
+            </div>
+            {suvError && <div className="text-xs text-red-700">{suvError}</div>}
+            <button
+              type="submit"
+              className="w-full flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-slate-900 rounded-lg hover:bg-slate-800"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Add Suvichar to Website</span>
+            </button>
+          </form>
+
+          <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl max-h-64 overflow-y-auto">
+            {websiteContent.suvichar_list.map((suv) => (
+              <div
+                key={suv.id}
+                className="p-3.5 flex items-start justify-between gap-3"
+              >
+                <div className="min-w-0 space-y-1">
+                  <div className="text-[11px] font-mono text-amber-800">
+                    {suv.category} · {suv.author}
+                  </div>
+                  <p className="text-xs text-slate-800 line-clamp-2">
+                    {suv.text}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteSuvichar(suv.id)}
+                  aria-label={`Delete suvichar #${suv.id}`}
+                  className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg shrink-0"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
         </section>
       </div>
     </div>

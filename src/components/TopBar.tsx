@@ -1,7 +1,17 @@
 import React from 'react';
 import type { User } from 'firebase/auth';
-import { Code2, LogIn, LogOut, Menu, UploadCloud } from 'lucide-react';
+import {
+  Code2,
+  Globe,
+  LogIn,
+  LogOut,
+  Menu,
+  Settings,
+  UploadCloud,
+} from 'lucide-react';
 import type { AdminSection, SyncStatus } from '../types/config';
+import type { EnterpriseTabId } from '../utils/enterpriseSettings';
+import { AdminBrandMenu } from './AdminBrandMenu';
 
 interface TopBarProps {
   activeSection: AdminSection;
@@ -14,6 +24,11 @@ interface TopBarProps {
   authLoading: boolean;
   onSignIn: () => void;
   onSignOut: () => void;
+  environment: 'production' | 'staging';
+  hasPin: boolean;
+  onOpenEnterpriseSetting: (tab: EnterpriseTabId | null) => void;
+  onOpenLiveSite: () => void;
+  onLockNow: () => void;
 }
 
 const SECTION_TITLES: Record<AdminSection, string> = {
@@ -21,7 +36,10 @@ const SECTION_TITLES: Record<AdminSection, string> = {
   shayari: 'Shayari Manager',
   notifications: 'Notifications & Announcements',
   monetization: 'Monetization & Social Links',
+  website: 'Live Public Websites',
+  proxy: 'Proxy & Mirror Routing',
   sync: 'GitHub Sync & Cloud Auth',
+  settings: 'Enterprise Settings',
 };
 
 export const TopBar: React.FC<TopBarProps> = ({
@@ -35,9 +53,14 @@ export const TopBar: React.FC<TopBarProps> = ({
   authLoading,
   onSignIn,
   onSignOut,
+  environment,
+  hasPin,
+  onOpenEnterpriseSetting,
+  onOpenLiveSite,
+  onLockNow,
 }) => {
   return (
-    <header className="sticky top-0 z-30 h-16 bg-white border-b border-slate-200 px-4 sm:px-6 flex items-center justify-between gap-4">
+    <header className="sticky top-0 z-30 h-16 bg-white border-b border-slate-200 px-4 sm:px-6 flex items-center justify-between gap-3">
       <div className="flex items-center gap-3 min-w-0">
         <button
           type="button"
@@ -59,17 +82,17 @@ export const TopBar: React.FC<TopBarProps> = ({
             {SECTION_TITLES[activeSection]}
           </h1>
           {unsaved && (
-            <span className="hidden md:inline text-xs font-medium text-amber-700 whitespace-nowrap shrink-0">
+            <span className="hidden xl:inline text-xs font-medium text-amber-700 whitespace-nowrap shrink-0">
               · Unsaved changes
             </span>
           )}
         </div>
       </div>
 
-      <div className="flex items-center gap-2.5 shrink-0">
+      <div className="flex items-center gap-2 shrink-0">
         {!authLoading &&
           (user ? (
-            <div className="hidden sm:flex items-center gap-2 pr-2 border-r border-slate-200">
+            <div className="hidden xl:flex items-center gap-2 pr-2 border-r border-slate-200">
               <span className="text-xs font-medium text-slate-600 max-w-[140px] truncate">
                 {user.displayName || user.email}
               </span>
@@ -87,12 +110,30 @@ export const TopBar: React.FC<TopBarProps> = ({
             <button
               type="button"
               onClick={onSignIn}
-              className="hidden sm:flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors whitespace-nowrap shrink-0"
+              className="hidden xl:flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors whitespace-nowrap shrink-0"
             >
               <LogIn className="w-3.5 h-3.5" />
               <span>Google Sign-In</span>
             </button>
           ))}
+
+        <button
+          type="button"
+          onClick={onOpenLiveSite}
+          className="hidden md:flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors whitespace-nowrap shrink-0"
+        >
+          <Globe className="w-3.5 h-3.5 text-indigo-600" />
+          <span>Live Website</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onOpenEnterpriseSetting(null)}
+          className="hidden md:flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors whitespace-nowrap shrink-0"
+        >
+          <Settings className="w-3.5 h-3.5 text-slate-500" />
+          <span>Settings</span>
+        </button>
 
         <button
           type="button"
@@ -118,6 +159,16 @@ export const TopBar: React.FC<TopBarProps> = ({
             {syncStatus === 'publishing' ? 'Pushing...' : 'Publish'}
           </span>
         </button>
+
+        <div className="lg:hidden">
+          <AdminBrandMenu
+            environment={environment}
+            hasPin={hasPin}
+            onLockNow={onLockNow}
+            onSelectSetting={onOpenEnterpriseSetting}
+            align="right"
+          />
+        </div>
       </div>
     </header>
   );

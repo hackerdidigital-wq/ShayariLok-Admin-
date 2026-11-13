@@ -28,13 +28,30 @@ test('firestore.rules covers every collection path declared in firebase-blueprin
   assert.ok(paths.includes('/users/{userId}/settings/{settingId}'));
   assert.ok(paths.includes('/users/{userId}/drafts/{draftId}'));
   assert.ok(paths.includes('/users/{userId}/publishLogs/{logId}'));
+  assert.ok(paths.includes('/users/{userId}/proxyProfiles/{profileId}'));
+  assert.ok(paths.includes('/publicSites/{siteId}'));
 
   assert.match(rules, /match \/users\/\{userId\}/);
   assert.match(rules, /match \/settings\/\{settingId\}/);
   assert.match(rules, /match \/drafts\/\{draftId\}/);
   assert.match(rules, /match \/publishLogs\/\{logId\}/);
+  assert.match(rules, /match \/proxyProfiles\/\{profileId\}/);
+  assert.match(rules, /match \/publicSites\/\{siteId\}/);
 });
 
 test('firestore.rules locks publishLogs against updates and deletes', () => {
   assert.match(rules, /allow update, delete:\s*if false;/);
 });
+
+test('firestore.rules restricts proxyProfile modes and bounds fallbackNodes', () => {
+  assert.match(rules, /isValidProxyProfile/);
+  assert.match(rules, /data\.fallbackNodes\.size\(\)\s*<=\s*10/);
+});
+
+test('firestore.rules validates publicSites schema and blocks list scraping', () => {
+  assert.match(rules, /isValidPublicSite/);
+  assert.match(rules, /match \/publicSites\/\{siteId\}\s*\{\s*allow get:\s*if isValidId\(siteId\);\s*allow list:\s*if false;/);
+  assert.match(rules, /data\.suvichar_list\.size\(\)\s*<=\s*100/);
+  assert.match(rules, /data\.photo_shayari_list\.size\(\)\s*<=\s*60/);
+});
+
