@@ -56,7 +56,10 @@ const VALID_SECTIONS: ReadonlyArray<AdminSection> = [
 
 function getSectionFromHash(): AdminSection {
   if (typeof window === 'undefined') return 'dashboard';
-  const raw = window.location.hash.replace(/^#\/?/, '').trim() as AdminSection;
+  const raw = window.location.hash
+    .replace(/^#\/?/, '')
+    .split(/[?/]/)[0]
+    .trim() as AdminSection;
   return VALID_SECTIONS.includes(raw) ? raw : 'dashboard';
 }
 

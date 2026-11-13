@@ -5,7 +5,7 @@ import {defineConfig} from 'vite';
 
 export default defineConfig(() => {
   return {
-    base: '/ShayariLok-Admin/',
+    base: './',
     plugins: [react(), tailwindcss()],
     build: {
       target: 'es2020',
