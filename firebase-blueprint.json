@@ -1,0 +1,286 @@
+{
+  "entities": {
+    "AdminUser": {
+      "title": "AdminUser",
+      "description": "Authenticated admin user profile stored privately per user.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Firebase Auth UID of the user."
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "minLength": 3,
+          "maxLength": 254,
+          "description": "Verified Google account email."
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "description": "User display name."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation server timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last update server timestamp."
+        }
+      },
+      "required": ["uid", "email", "displayName", "createdAt", "updatedAt"]
+    },
+    "RepoConnection": {
+      "title": "RepoConnection",
+      "description": "GitHub repository metadata (without sensitive PAT) synced for the signed-in admin.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Owner Firebase Auth UID."
+        },
+        "githubOwner": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "description": "GitHub username or organization."
+        },
+        "githubRepo": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "description": "GitHub repository name."
+        },
+        "githubBranch": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "description": "Target branch name (default main)."
+        },
+        "githubPath": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "description": "Path to config.json in repository."
+        },
+        "lastSha": {
+          "type": "string",
+          "maxLength": 128,
+          "description": "Last known GitHub blob SHA."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last update server timestamp."
+        }
+      },
+      "required": [
+        "ownerId",
+        "githubOwner",
+        "githubRepo",
+        "githubBranch",
+        "githubPath",
+        "lastSha",
+        "updatedAt"
+      ]
+    },
+    "ConfigDraft": {
+      "title": "ConfigDraft",
+      "description": "Cloud-synced draft snapshot of Shayari Lok config.json.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Owner Firebase Auth UID."
+        },
+        "app_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "description": "Android app display name."
+        },
+        "latest_version_code": {
+          "type": "integer",
+          "description": "Latest Android version code."
+        },
+        "force_update_url": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "Play Store or APK update URL."
+        },
+        "maintenance_mode": {
+          "type": "boolean",
+          "description": "Maintenance switch."
+        },
+        "maintenance_message": {
+          "type": "string",
+          "maxLength": 1000,
+          "description": "Message displayed during maintenance."
+        },
+        "privacy_policy_url": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "Privacy policy URL."
+        },
+        "social_link": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "Telegram or Instagram URL."
+        },
+        "ads_enabled": {
+          "type": "boolean",
+          "description": "AdMob master toggle."
+        },
+        "banner_ad_id": {
+          "type": "string",
+          "maxLength": 120,
+          "description": "AdMob banner unit ID."
+        },
+        "interstitial_ad_id": {
+          "type": "string",
+          "maxLength": 120,
+          "description": "AdMob interstitial unit ID."
+        },
+        "announcement_title": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "In-app announcement title."
+        },
+        "announcement_message": {
+          "type": "string",
+          "maxLength": 1000,
+          "description": "In-app announcement message."
+        },
+        "categories": {
+          "type": "array",
+          "description": "Bounded list of Shayari categories starting with All."
+        },
+        "notifications": {
+          "type": "array",
+          "description": "Bounded list of bell notification items."
+        },
+        "shayari_list": {
+          "type": "array",
+          "description": "Bounded list of Shayari items."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last update server timestamp."
+        }
+      },
+      "required": [
+        "ownerId",
+        "app_name",
+        "latest_version_code",
+        "force_update_url",
+        "maintenance_mode",
+        "maintenance_message",
+        "privacy_policy_url",
+        "social_link",
+        "ads_enabled",
+        "banner_ad_id",
+        "interstitial_ad_id",
+        "announcement_title",
+        "announcement_message",
+        "categories",
+        "notifications",
+        "shayari_list",
+        "updatedAt"
+      ]
+    },
+    "PublishLog": {
+      "title": "PublishLog",
+      "description": "Immutable history entry recording a GitHub config.json commit.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Owner Firebase Auth UID."
+        },
+        "commitSha": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "Resulting GitHub file or commit SHA."
+        },
+        "branch": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "description": "Branch published to."
+        },
+        "filePath": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "description": "File path published."
+        },
+        "versionCode": {
+          "type": "integer",
+          "description": "Version code at publish time."
+        },
+        "shayariCount": {
+          "type": "integer",
+          "description": "Total shayari count at publish time."
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300,
+          "description": "Commit message."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Publish server timestamp."
+        }
+      },
+      "required": [
+        "ownerId",
+        "commitSha",
+        "branch",
+        "filePath",
+        "versionCode",
+        "shayariCount",
+        "message",
+        "createdAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/AdminUser" },
+      "description": "Private user profile document keyed by Firebase Auth UID."
+    },
+    "/users/{userId}/settings/{settingId}": {
+      "schema": { "$ref": "#/entities/RepoConnection" },
+      "description": "User's GitHub repository connection settings (without PAT)."
+    },
+    "/users/{userId}/drafts/{draftId}": {
+      "schema": { "$ref": "#/entities/ConfigDraft" },
+      "description": "User's cloud-persisted Shayari Lok config.json draft."
+    },
+    "/users/{userId}/publishLogs/{logId}": {
+      "schema": { "$ref": "#/entities/PublishLog" },
+      "description": "Immutable history of GitHub config.json publishes by the user."
+    }
+  }
+}

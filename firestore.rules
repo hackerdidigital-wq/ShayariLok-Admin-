@@ -1,0 +1,188 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isVerified() && request.auth.uid == userId;
+    }
+
+    function isValidAdminUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'displayName', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'displayName', 'createdAt', 'updatedAt'])
+        && data.uid is string && data.uid == request.auth.uid && isValidId(data.uid)
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 254
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 120
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidRepoConnection(data) {
+      return data.keys().hasAll(['ownerId', 'githubOwner', 'githubRepo', 'githubBranch', 'githubPath', 'lastSha', 'updatedAt'])
+        && data.keys().hasOnly(['ownerId', 'githubOwner', 'githubRepo', 'githubBranch', 'githubPath', 'lastSha', 'updatedAt'])
+        && data.ownerId is string && data.ownerId == request.auth.uid && isValidId(data.ownerId)
+        && data.githubOwner is string && data.githubOwner.size() >= 1 && data.githubOwner.size() <= 100
+        && data.githubRepo is string && data.githubRepo.size() >= 1 && data.githubRepo.size() <= 120
+        && data.githubBranch is string && data.githubBranch.size() >= 1 && data.githubBranch.size() <= 100
+        && data.githubPath is string && data.githubPath.size() >= 1 && data.githubPath.size() <= 256
+        && data.lastSha is string && data.lastSha.size() <= 128
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidConfigDraft(data) {
+      return data.keys().hasAll([
+          'ownerId', 'app_name', 'latest_version_code', 'force_update_url',
+          'maintenance_mode', 'maintenance_message', 'privacy_policy_url',
+          'social_link', 'ads_enabled', 'banner_ad_id', 'interstitial_ad_id',
+          'announcement_title', 'announcement_message', 'categories',
+          'notifications', 'shayari_list', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'ownerId', 'app_name', 'latest_version_code', 'force_update_url',
+          'maintenance_mode', 'maintenance_message', 'privacy_policy_url',
+          'social_link', 'ads_enabled', 'banner_ad_id', 'interstitial_ad_id',
+          'announcement_title', 'announcement_message', 'categories',
+          'notifications', 'shayari_list', 'updatedAt'
+        ])
+        && data.ownerId is string && data.ownerId == request.auth.uid && isValidId(data.ownerId)
+        && data.app_name is string && data.app_name.size() >= 1 && data.app_name.size() <= 80
+        && data.latest_version_code is int && data.latest_version_code >= 1 && data.latest_version_code <= 9999999
+        && data.force_update_url is string && data.force_update_url.size() <= 500
+        && data.maintenance_mode is bool
+        && data.maintenance_message is string && data.maintenance_message.size() <= 1000
+        && data.privacy_policy_url is string && data.privacy_policy_url.size() <= 500
+        && data.social_link is string && data.social_link.size() <= 500
+        && data.ads_enabled is bool
+        && data.banner_ad_id is string && data.banner_ad_id.size() <= 120
+        && data.interstitial_ad_id is string && data.interstitial_ad_id.size() <= 120
+        && data.announcement_title is string && data.announcement_title.size() <= 200
+        && data.announcement_message is string && data.announcement_message.size() <= 1000
+        && data.categories is list && data.categories.size() >= 1 && data.categories.size() <= 50
+        && data.categories[0] is string && data.categories[0] == 'All'
+        && data.notifications is list && data.notifications.size() <= 100
+        && (data.notifications.size() == 0 || data.notifications[0] is map)
+        && data.shayari_list is list && data.shayari_list.size() <= 500
+        && (data.shayari_list.size() == 0 || data.shayari_list[0] is map)
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPublishLog(data) {
+      return data.keys().hasAll([
+          'ownerId', 'commitSha', 'branch', 'filePath', 'versionCode',
+          'shayariCount', 'message', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'ownerId', 'commitSha', 'branch', 'filePath', 'versionCode',
+          'shayariCount', 'message', 'createdAt'
+        ])
+        && data.ownerId is string && data.ownerId == request.auth.uid && isValidId(data.ownerId)
+        && data.commitSha is string && data.commitSha.size() >= 1 && data.commitSha.size() <= 128
+        && data.branch is string && data.branch.size() >= 1 && data.branch.size() <= 100
+        && data.filePath is string && data.filePath.size() >= 1 && data.filePath.size() <= 256
+        && data.versionCode is int && data.versionCode >= 1 && data.versionCode <= 9999999
+        && data.shayariCount is int && data.shayariCount >= 0 && data.shayariCount <= 10000
+        && data.message is string && data.message.size() >= 1 && data.message.size() <= 300
+        && data.createdAt is timestamp;
+    }
+
+    match /users/{userId} {
+      allow get: if isValidId(userId) && isOwner(userId);
+      allow list: if false;
+      allow create: if isValidId(userId)
+        && isOwner(userId)
+        && isValidAdminUser(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(userId)
+        && isOwner(userId)
+        && isValidAdminUser(incoming())
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['email', 'displayName', 'updatedAt']);
+      allow delete: if false;
+
+      match /settings/{settingId} {
+        allow get: if isValidId(userId) && isValidId(settingId) && isOwner(userId);
+        allow list: if isOwner(userId) && resource.data.ownerId == request.auth.uid;
+        allow create: if isValidId(userId)
+          && isValidId(settingId)
+          && isOwner(userId)
+          && isValidRepoConnection(incoming())
+          && incoming().updatedAt == request.time
+          && exists(/databases/$(database)/documents/users/$(userId));
+        allow update: if isValidId(userId)
+          && isValidId(settingId)
+          && isOwner(userId)
+          && isValidRepoConnection(incoming())
+          && incoming().ownerId == existing().ownerId
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly([
+            'githubOwner', 'githubRepo', 'githubBranch', 'githubPath', 'lastSha', 'updatedAt'
+          ]);
+        allow delete: if isValidId(userId) && isValidId(settingId) && isOwner(userId);
+      }
+
+      match /drafts/{draftId} {
+        allow get: if isValidId(userId) && isValidId(draftId) && isOwner(userId);
+        allow list: if isOwner(userId) && resource.data.ownerId == request.auth.uid;
+        allow create: if isValidId(userId)
+          && isValidId(draftId)
+          && isOwner(userId)
+          && isValidConfigDraft(incoming())
+          && incoming().updatedAt == request.time
+          && exists(/databases/$(database)/documents/users/$(userId));
+        allow update: if isValidId(userId)
+          && isValidId(draftId)
+          && isOwner(userId)
+          && isValidConfigDraft(incoming())
+          && incoming().ownerId == existing().ownerId
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly([
+            'app_name', 'latest_version_code', 'force_update_url',
+            'maintenance_mode', 'maintenance_message', 'privacy_policy_url',
+            'social_link', 'ads_enabled', 'banner_ad_id', 'interstitial_ad_id',
+            'announcement_title', 'announcement_message', 'categories',
+            'notifications', 'shayari_list', 'updatedAt'
+          ]);
+        allow delete: if isValidId(userId) && isValidId(draftId) && isOwner(userId);
+      }
+
+      match /publishLogs/{logId} {
+        allow get: if isValidId(userId) && isValidId(logId) && isOwner(userId);
+        allow list: if isOwner(userId) && resource.data.ownerId == request.auth.uid;
+        allow create: if isValidId(userId)
+          && isValidId(logId)
+          && isOwner(userId)
+          && isValidPublishLog(incoming())
+          && incoming().createdAt == request.time
+          && exists(/databases/$(database)/documents/users/$(userId));
+        allow update, delete: if false;
+      }
+    }
+  }
+}
