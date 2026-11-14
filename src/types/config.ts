@@ -150,10 +150,18 @@ export interface WebsiteVisibilityControls {
   showMaintenanceNotice: boolean;
 }
 
+export interface WebsiteSocialLinks {
+  whatsapp: string;
+  facebook: string;
+  instagram: string;
+  youtube: string;
+}
+
 export interface WebsiteContentSettings {
   heroHeadline: string;
   heroSubheadline: string;
   controls: WebsiteVisibilityControls;
+  socialLinks?: WebsiteSocialLinks;
   suvichar_list: SuvicharItem[];
   photo_shayari_list: PhotoShayariCard[];
 }

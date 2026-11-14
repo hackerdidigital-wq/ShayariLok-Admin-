@@ -3,31 +3,1749 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Shayari Lok — Live Shayari, Photo Shayari &amp; Suvichar</title>
+    <title>Shayari Lok — Live Hindi Shayari, Photo Shayari &amp; Suvichar</title>
     <meta
       name="description"
-      content="Shayari Lok official live website featuring curated Hindi and Hinglish Shayari, Photo Shayari cards, daily Suvichar, live app notifications, and Android download."
+      content="Shayari Lok official public website featuring curated Hindi and Hinglish Shayari, Photo Shayari cards, daily Suvichar, live notifications, and Android app download."
     />
-    <meta property="og:title" content="Shayari Lok — Live Shayari, Photo Shayari &amp; Suvichar" />
+    <meta property="og:title" content="Shayari Lok — Live Hindi Shayari, Photo Shayari &amp; Suvichar" />
     <meta
       property="og:description"
-      content="Read curated Hindi Shayari, Photo Shayari cards, daily Suvichar, and live app notifications from Shayari Lok."
+      content="Read curated Hindi Shayari, Photo Shayari cards, daily Suvichar, and live notifications on Shayari Lok."
     />
     <meta property="og:type" content="website" />
-    <meta name="twitter:card" content="summary_large_image" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+Devanagari:wght@400;500;600;700&family=Outfit:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Lora:wght@600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      :root {
+        --brand-green: #2d5e36;
+        --brand-green-dark: #234b2a;
+        --brand-indigo: #4338ca;
+        --bg-stone: #f7f7f7;
+        --card-white: #ffffff;
+        --border-subtle: #e2e8f0;
+        --text-ink: #0f172a;
+        --text-body: #1e293b;
+        --text-muted: #475569;
+        --footer-bg: #222222;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        background-color: var(--bg-stone);
+        color: var(--text-ink);
+        font-family: 'Plus Jakarta Sans', 'Noto Sans Devanagari', system-ui, -apple-system, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .font-serif {
+        font-family: 'Lora', Georgia, Cambria, 'Times New Roman', Times, serif;
+      }
+
+      .font-mono {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      }
+
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+
+      button {
+        font-family: inherit;
+      }
+
+      /* Header */
+      .site-header {
+        position: sticky;
+        top: 0;
+        z-index: 40;
+        background-color: var(--brand-green);
+        color: #ffffff;
+        border-bottom: 1px solid var(--brand-green-dark);
+      }
+
+      .header-inner {
+        max-width: 1200px;
+        margin: 0 auto;
+        height: 60px;
+        padding: 0 12px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+
+      .brand-btn {
+        background: none;
+        border: none;
+        padding: 0;
+        color: #ffffff;
+        font-size: 18.5px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        cursor: pointer;
+        white-space: nowrap;
+        flex-shrink: 0;
+      }
+
+      .desktop-nav {
+        display: none;
+        align-items: center;
+        gap: 24px;
+        font-size: 14px;
+        font-weight: 500;
+        color: rgba(236, 253, 245, 0.9);
+      }
+
+      .nav-item {
+        background: none;
+        border: none;
+        padding: 2px 0;
+        border-bottom: 2px solid transparent;
+        color: inherit;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: color 0.15s ease, border-color 0.15s ease;
+      }
+
+      .nav-item:hover {
+        color: #ffffff;
+      }
+
+      .nav-item.active {
+        color: #ffffff;
+        font-weight: 600;
+        border-bottom-color: #ffffff;
+      }
+
+      .header-actions {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        position: relative;
+        flex-shrink: 0;
+      }
+
+      .bell-btn {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 34px;
+        height: 34px;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.12);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: #ffffff;
+        cursor: pointer;
+        flex-shrink: 0;
+      }
+
+      .bell-btn:hover {
+        background: rgba(255, 255, 255, 0.2);
+      }
+
+      .bell-badge {
+        position: absolute;
+        top: -5px;
+        right: -5px;
+        min-width: 17px;
+        height: 17px;
+        border-radius: 999px;
+        background: #f59e0b;
+        color: #0f172a;
+        font-size: 10px;
+        font-weight: 700;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0 4px;
+      }
+
+      .btn-download {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        background: #ffffff;
+        color: var(--brand-green);
+        font-size: 12px;
+        font-weight: 700;
+        padding: 7px 10px;
+        border-radius: 8px;
+        white-space: nowrap;
+        transition: background-color 0.15s ease;
+        flex-shrink: 0;
+      }
+
+      .btn-download:hover {
+        background: #ecfdf5;
+      }
+
+      .btn-download .dl-full {
+        display: none;
+      }
+
+      .btn-download .dl-short {
+        display: inline;
+      }
+
+      .btn-menu {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        background: rgba(255, 255, 255, 0.12);
+        color: #ffffff;
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        border-radius: 8px;
+        padding: 7px 10px;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        flex-shrink: 0;
+      }
+
+      @media (min-width: 640px) {
+        .header-inner {
+          height: 64px;
+          padding: 0 20px;
+          gap: 16px;
+        }
+        .brand-btn {
+          font-size: 22px;
+        }
+        .header-actions {
+          gap: 10px;
+        }
+        .bell-btn {
+          width: 38px;
+          height: 38px;
+        }
+        .btn-download {
+          font-size: 13px;
+          padding: 8px 14px;
+          gap: 6px;
+        }
+        .btn-download .dl-full {
+          display: inline;
+        }
+        .btn-download .dl-short {
+          display: none;
+        }
+        .btn-menu {
+          font-size: 13px;
+          padding: 7px 12px;
+        }
+      }
+
+      /* Notification Drawer */
+      .notif-popover {
+        display: none;
+        position: absolute;
+        top: 52px;
+        right: 0;
+        width: min(360px, calc(100vw - 32px));
+        background: #ffffff;
+        color: var(--text-ink);
+        border: 1px solid var(--border-subtle);
+        border-radius: 14px;
+        box-shadow: 0 20px 44px rgba(15, 23, 42, 0.22);
+        overflow: hidden;
+        z-index: 50;
+      }
+
+      .notif-popover.open {
+        display: block;
+      }
+
+      .notif-popover-head {
+        padding: 13px 16px;
+        border-bottom: 1px solid #f1f5f9;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-weight: 700;
+        font-size: 13.5px;
+      }
+
+      .notif-popover-list {
+        max-height: 320px;
+        overflow-y: auto;
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .notif-item {
+        padding: 11px 12px;
+        border-radius: 10px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+      }
+
+      .notif-item-meta {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 11px;
+        color: var(--brand-green);
+        font-weight: 700;
+        margin-bottom: 4px;
+      }
+
+      .notif-item-title {
+        font-size: 13.5px;
+        font-weight: 700;
+        color: var(--text-ink);
+      }
+
+      .notif-item-msg {
+        margin-top: 4px;
+        font-size: 12.5px;
+        color: var(--text-muted);
+        white-space: pre-line;
+        line-height: 1.5;
+      }
+
+      /* Mobile Drawer */
+      .mobile-drawer {
+        display: none;
+        background-color: var(--brand-green-dark);
+        border-top: 1px solid rgba(255, 255, 255, 0.14);
+        padding: 12px 20px 16px;
+      }
+
+      .mobile-drawer.open {
+        display: block;
+      }
+
+      .mobile-drawer-links {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .mobile-drawer-links .m-link {
+        display: block;
+        width: 100%;
+        text-align: left;
+        background: none;
+        border: none;
+        padding: 10px 12px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        color: rgba(255, 255, 255, 0.92);
+        cursor: pointer;
+      }
+
+      .mobile-drawer-links .m-link.active,
+      .mobile-drawer-links .m-link:hover {
+        background: rgba(255, 255, 255, 0.15);
+        color: #ffffff;
+        font-weight: 600;
+      }
+
+      /* Maintenance Notice */
+      .maintenance-strip {
+        display: none;
+        background: #fef3c7;
+        border-bottom: 1px solid #fde68a;
+        color: #92400e;
+        padding: 10px 20px;
+        font-size: 13px;
+        font-weight: 600;
+        text-align: center;
+      }
+
+      .maintenance-strip.show {
+        display: block;
+      }
+
+      /* Container & Sections */
+      .main-wrap {
+        flex: 1;
+        width: 100%;
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 28px 16px 56px;
+        display: flex;
+        flex-direction: column;
+        gap: 36px;
+      }
+
+      /* Hero */
+      .hero-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 20px;
+      }
+
+      .hero-card {
+        background: #ffffff;
+        border: 1px solid var(--border-subtle);
+        border-radius: 18px;
+        padding: 26px 22px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        gap: 20px;
+      }
+
+      .hero-eyebrow {
+        font-size: 12px;
+        color: #64748b;
+      }
+
+      .hero-title {
+        margin: 8px 0 0;
+        font-size: 28px;
+        line-height: 1.25;
+        font-weight: 700;
+        color: var(--text-ink);
+      }
+
+      .hero-sub {
+        margin: 12px 0 0;
+        font-size: 14.5px;
+        line-height: 1.65;
+        color: var(--text-muted);
+      }
+
+      .announce-box {
+        padding: 14px 16px;
+        border-radius: 12px;
+        background: #f8fafc;
+        border: 1px solid var(--border-subtle);
+      }
+
+      .announce-title {
+        font-size: 12.5px;
+        font-weight: 700;
+        color: var(--brand-indigo);
+      }
+
+      .announce-msg {
+        margin-top: 4px;
+        font-size: 13px;
+        line-height: 1.55;
+        color: var(--text-body);
+      }
+
+      .hero-cta-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .btn-green {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 10px 16px;
+        border-radius: 10px;
+        background: var(--brand-green);
+        color: #ffffff;
+        font-size: 13.5px;
+        font-weight: 600;
+        border: none;
+        cursor: pointer;
+        transition: background-color 0.15s ease;
+      }
+
+      .btn-green:hover {
+        background: var(--brand-green-dark);
+      }
+
+      .btn-soft {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 10px 15px;
+        border-radius: 10px;
+        background: #eef2ff;
+        color: #3730a3;
+        border: 1px solid #c7d2fe;
+        font-size: 13.5px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      .btn-outline {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 10px 15px;
+        border-radius: 10px;
+        background: #ffffff;
+        color: var(--text-ink);
+        border: 1px solid var(--border-subtle);
+        font-size: 13.5px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      .btn-outline:hover {
+        background: #f8fafc;
+      }
+
+      .hero-showcase {
+        background: linear-gradient(145deg, #1b3b22 0%, #2d5e36 55%, #16301b 100%);
+        color: #ffffff;
+        border-radius: 18px;
+        padding: 28px 24px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        gap: 18px;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .showcase-badge {
+        display: inline-flex;
+        align-self: flex-start;
+        padding: 5px 11px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.14);
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        font-size: 11.5px;
+        font-weight: 600;
+        letter-spacing: 0.03em;
+      }
+
+      .showcase-quote {
+        font-size: 20px;
+        line-height: 1.7;
+        font-weight: 600;
+        white-space: pre-line;
+      }
+
+      .showcase-foot {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 12.5px;
+        color: rgba(236, 253, 245, 0.85);
+        border-top: 1px solid rgba(255, 255, 255, 0.16);
+        padding-top: 14px;
+      }
+
+      /* Stats Strip */
+      .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 14px;
+      }
+
+      .stat-card {
+        background: #ffffff;
+        border: 1px solid var(--border-subtle);
+        border-radius: 14px;
+        padding: 16px 18px;
+      }
+
+      .stat-label {
+        font-size: 12px;
+        color: #64748b;
+        font-weight: 500;
+      }
+
+      .stat-val {
+        margin-top: 6px;
+        font-size: 24px;
+        font-weight: 700;
+        color: var(--text-ink);
+      }
+
+      /* Section Headers & Filters */
+      .sec-head {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .sec-kicker {
+        font-size: 11.5px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--brand-green);
+      }
+
+      .sec-title {
+        margin: 2px 0 0;
+        font-size: 22px;
+        font-weight: 700;
+        color: var(--text-ink);
+      }
+
+      .sec-desc {
+        margin: 4px 0 0;
+        font-size: 13.5px;
+        color: var(--text-muted);
+      }
+
+      .filter-bar {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .chips-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .chip-btn {
+        padding: 7px 14px;
+        border-radius: 999px;
+        border: 1px solid var(--border-subtle);
+        background: #ffffff;
+        color: var(--text-body);
+        font-size: 12.5px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.15s ease;
+      }
+
+      .chip-btn.active {
+        background: var(--brand-green);
+        border-color: var(--brand-green);
+        color: #ffffff;
+      }
+
+      .search-input {
+        width: 100%;
+        max-width: 340px;
+        padding: 9px 14px;
+        border-radius: 10px;
+        border: 1px solid var(--border-subtle);
+        background: #ffffff;
+        font-size: 13.5px;
+        color: var(--text-ink);
+        outline: none;
+      }
+
+      .search-input:focus {
+        border-color: var(--brand-green);
+      }
+
+      /* Cards Grid */
+      .cards-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 16px;
+      }
+
+      .shayari-card {
+        background: #ffffff;
+        border: 1px solid var(--border-subtle);
+        border-radius: 16px;
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      .card-photo {
+        width: 100%;
+        max-height: 240px;
+        object-fit: cover;
+        border-radius: 12px;
+        border: 1px solid #f1f5f9;
+        margin-bottom: 10px;
+      }
+
+      .card-meta {
+        font-size: 11.5px;
+        font-weight: 700;
+        color: var(--brand-green);
+      }
+
+      .card-text {
+        margin: 10px 0 0;
+        font-size: 15.5px;
+        line-height: 1.75;
+        color: var(--text-ink);
+        white-space: pre-line;
+      }
+
+      .card-footer {
+        padding-top: 12px;
+        border-top: 1px solid #f1f5f9;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+
+      .card-author {
+        font-size: 12.5px;
+        font-weight: 600;
+        color: #64748b;
+      }
+
+      .card-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .btn-xs {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 6px 11px;
+        border-radius: 8px;
+        font-size: 12px;
+        font-weight: 600;
+        border: 1px solid var(--border-subtle);
+        background: #f8fafc;
+        color: var(--text-ink);
+        cursor: pointer;
+      }
+
+      .btn-xs:hover {
+        background: #f1f5f9;
+      }
+
+      .btn-xs-wa {
+        background: #ecfdf5;
+        border-color: #a7f3d0;
+        color: #065f46;
+      }
+
+      .btn-xs-wa:hover {
+        background: #d1fae5;
+      }
+
+      /* Photo Shayari Decorative Cards */
+      .photo-card {
+        border-radius: 16px;
+        overflow: hidden;
+        color: #ffffff;
+        padding: 24px 20px;
+        min-height: 210px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        gap: 18px;
+      }
+
+      .theme-sunset {
+        background: linear-gradient(135deg, #4c0519 0%, #9a3412 60%, #1e1b4b 100%);
+      }
+
+      .theme-morning {
+        background: linear-gradient(135deg, #064e3b 0%, #115e59 55%, #1e293b 100%);
+      }
+
+      .theme-rain {
+        background: linear-gradient(135deg, #0f172a 0%, #312e81 60%, #1e293b 100%);
+      }
+
+      .theme-ink {
+        background: linear-gradient(135deg, #1c1917 0%, #334155 60%, #0f172a 100%);
+      }
+
+      .photo-card-cat {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: rgba(255, 255, 255, 0.8);
+      }
+
+      .photo-card-text {
+        margin: 0;
+        font-size: 16px;
+        line-height: 1.75;
+        font-weight: 600;
+        white-space: pre-line;
+      }
+
+      /* Privacy Highlight Banner */
+      .privacy-callout {
+        background: #ffffff;
+        border: 1px solid var(--border-subtle);
+        border-radius: 16px;
+        padding: 22px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+
+      .privacy-callout h3 {
+        margin: 0;
+        font-size: 17px;
+        font-weight: 700;
+        color: var(--text-ink);
+      }
+
+      .privacy-callout p {
+        margin: 4px 0 0;
+        font-size: 13.5px;
+        color: var(--text-muted);
+        line-height: 1.55;
+      }
+
+      /* Footer */
+      .site-footer {
+        background: var(--footer-bg);
+        color: #cbd5e1;
+        border-top: 1px solid #111111;
+        padding: 32px 20px;
+        margin-top: auto;
+      }
+
+      .footer-inner {
+        max-width: 1200px;
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        gap: 22px;
+      }
+
+      .footer-top {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      .footer-brand {
+        font-size: 19px;
+        font-weight: 700;
+        color: #ffffff;
+      }
+
+      .footer-sub {
+        margin-top: 4px;
+        font-size: 12px;
+        color: #94a3b8;
+      }
+
+      .footer-links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 18px;
+        font-size: 13.5px;
+      }
+
+      .footer-links a,
+      .footer-links button {
+        background: none;
+        border: none;
+        padding: 0;
+        color: #cbd5e1;
+        font-size: 13.5px;
+        cursor: pointer;
+        transition: color 0.15s ease;
+      }
+
+      .footer-links a:hover,
+      .footer-links button:hover {
+        color: #ffffff;
+      }
+
+      .footer-bottom {
+        padding-top: 18px;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+
+      .social-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .social-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 9px 14px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        color: #f8fafc;
+        font-size: 12.5px;
+        font-weight: 600;
+        transition: transform 0.15s ease, background-color 0.15s ease;
+      }
+
+      .social-pill:hover {
+        transform: translateY(-2px);
+        background: rgba(255, 255, 255, 0.18);
+      }
+
+      .social-icon {
+        width: 18px;
+        height: 18px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+      }
+
+      /* Toast */
+      .copy-toast {
+        position: fixed;
+        right: 20px;
+        bottom: 20px;
+        z-index: 60;
+        display: none;
+        align-items: center;
+        gap: 10px;
+        background: #047857;
+        color: #ffffff;
+        padding: 12px 16px;
+        border-radius: 12px;
+        box-shadow: 0 12px 28px rgba(0, 0, 0, 0.25);
+        font-size: 13px;
+        font-weight: 600;
+      }
+
+      .copy-toast.show {
+        display: flex;
+      }
+
+      @media (min-width: 768px) {
+        .desktop-nav {
+          display: flex;
+        }
+        .btn-menu {
+          display: none;
+        }
+        .hero-grid {
+          grid-template-columns: 7fr 5fr;
+        }
+        .hero-card {
+          padding: 36px;
+        }
+        .hero-title {
+          font-size: 38px;
+        }
+        .stats-grid {
+          grid-template-columns: repeat(4, 1fr);
+        }
+        .cards-grid {
+          grid-template-columns: repeat(2, 1fr);
+        }
+        .filter-bar {
+          flex-direction: row;
+          align-items: center;
+          justify-content: space-between;
+        }
+        .privacy-callout {
+          flex-direction: row;
+          align-items: center;
+          justify-content: space-between;
+        }
+        .footer-top,
+        .footer-bottom {
+          flex-direction: row;
+          align-items: center;
+          justify-content: space-between;
+        }
+      }
+    </style>
   </head>
-  <body class="bg-[#FAF9F6] text-slate-900 antialiased selection:bg-indigo-100 selection:text-indigo-900">
-    <div id="root">
-      <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:system-ui,sans-serif;color:#475569;font-size:14px;">
-        Loading Shayari Lok Website...
+  <body>
+    <header class="site-header">
+      <div class="header-inner">
+        <button type="button" class="brand-btn font-serif" id="header-brand" data-page="home">Shayari Lok</button>
+
+        <nav class="desktop-nav" aria-label="Website navigation">
+          <button type="button" class="nav-item active" data-page="home">Home</button>
+          <button type="button" class="nav-item" data-page="shayari">Shayari</button>
+          <button type="button" class="nav-item" data-page="suvichar">Suvichar</button>
+          <button type="button" class="nav-item" data-page="updates">Updates</button>
+          <a href="./privacy.html" class="nav-item">Privacy Policy</a>
+        </nav>
+
+        <div class="header-actions">
+          <button type="button" class="bell-btn" id="bell-btn" aria-label="Open live notifications" aria-expanded="false">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+              <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+            </svg>
+            <span class="bell-badge" id="bell-count">0</span>
+          </button>
+
+          <a
+            href="https://play.google.com/store/apps/details?id=com.cyberking.shayarilok"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="btn-download"
+            id="header-download-btn"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            <span class="dl-full">Download App</span>
+            <span class="dl-short">App</span>
+          </a>
+
+          <button type="button" class="btn-menu" id="mobile-menu-btn" aria-expanded="false" aria-label="Open website menu">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="3" y1="6" x2="21" y2="6" />
+              <line x1="3" y1="12" x2="21" y2="12" />
+              <line x1="3" y1="18" x2="21" y2="18" />
+            </svg>
+            <span>Menu</span>
+          </button>
+
+          <div class="notif-popover" id="notif-popover" role="region" aria-label="Live notifications">
+            <div class="notif-popover-head">
+              <span>Live Notifications</span>
+              <button type="button" id="close-notif-btn" style="background:none;border:none;cursor:pointer;font-size:13px;color:#64748b;font-weight:700;">Close</button>
+            </div>
+            <div class="notif-popover-list" id="notif-popover-list"></div>
+          </div>
+        </div>
       </div>
+
+      <div class="mobile-drawer" id="mobile-drawer">
+        <div class="mobile-drawer-links">
+          <button type="button" class="m-link active" data-page="home">Home</button>
+          <button type="button" class="m-link" data-page="shayari">Shayari</button>
+          <button type="button" class="m-link" data-page="suvichar">Suvichar</button>
+          <button type="button" class="m-link" data-page="updates">Updates</button>
+          <a href="./privacy.html" class="m-link">Privacy Policy</a>
+        </div>
+      </div>
+    </header>
+
+    <div class="maintenance-strip" id="maintenance-strip" role="alert"></div>
+
+    <main class="main-wrap" id="main-content"></main>
+
+    <footer class="site-footer">
+      <div class="footer-inner">
+        <div class="footer-top">
+          <div>
+            <div class="footer-brand font-serif" id="footer-brand">Shayari Lok</div>
+            <div class="footer-sub">CyberKing Studio · com.cyberking.shayarilok · Hindi &amp; Hinglish Shayari Portal</div>
+          </div>
+          <div class="footer-links">
+            <button type="button" data-page="home">Home</button>
+            <button type="button" data-page="shayari">Shayari</button>
+            <button type="button" data-page="suvichar">Suvichar</button>
+            <button type="button" data-page="updates">Updates</button>
+            <a href="./privacy.html">Privacy Policy</a>
+          </div>
+        </div>
+
+        <div class="footer-bottom">
+          <div class="footer-sub" style="margin:0;">Follow Shayari Lok for daily Hindi Shayari, Photo Cards &amp; Suvichar:</div>
+          <div class="social-row" aria-label="Official Social Media Profiles">
+            <a href="https://whatsapp.com/channel/0029VaShayariLok" target="_blank" rel="noopener noreferrer" class="social-pill" id="social-whatsapp" aria-label="WhatsApp Channel">
+              <span class="social-icon">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="#25D366" aria-hidden="true">
+                  <path d="M12.03 2C6.51 2 2.02 6.49 2.02 12c0 1.77.46 3.49 1.34 5.01L2 22l5.12-1.34A9.96 9.96 0 0 0 12.03 22C17.55 22 22.04 17.51 22.04 12S17.55 2 12.03 2Zm5.82 14.18c-.25.7-1.44 1.34-2 1.42-.52.08-1.18.11-1.91-.12-.44-.14-1-.32-1.72-.63-3.03-1.31-5.01-4.37-5.16-4.57-.15-.2-1.23-1.64-1.23-3.13 0-1.49.78-2.22 1.06-2.52.28-.3.61-.38.81-.38h.58c.19 0 .44-.07.69.53.25.6.86 2.1.94 2.25.08.15.13.33.03.53-.1.2-.15.33-.3.5-.15.18-.32.4-.45.54-.15.15-.31.31-.13.62.18.31.79 1.31 1.7 2.12 1.17 1.04 2.15 1.36 2.46 1.52.3.15.48.13.66-.08.18-.2.76-.89.96-1.19.2-.3.41-.25.69-.15.28.1 1.78.84 2.08.99.3.15.51.23.58.35.08.13.08.73-.17 1.43Z" />
+                </svg>
+              </span>
+              <span>WhatsApp</span>
+            </a>
+
+            <a href="https://www.facebook.com/shayarilok.official" target="_blank" rel="noopener noreferrer" class="social-pill" id="social-facebook" aria-label="Facebook Page">
+              <span class="social-icon">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="#1877F2" aria-hidden="true">
+                  <path d="M22 12.06C22 6.5 17.52 2 12 2S2 6.5 2 12.06c0 5.02 3.66 9.18 8.44 9.94v-7.03H7.9v-2.91h2.54V9.85c0-2.52 1.49-3.91 3.78-3.91 1.1 0 2.24.2 2.24.2v2.47h-1.26c-1.24 0-1.63.77-1.63 1.57v1.88h2.78l-.44 2.91h-2.34V22C18.34 21.24 22 17.08 22 12.06Z" />
+                </svg>
+              </span>
+              <span>Facebook</span>
+            </a>
+
+            <a href="https://www.instagram.com/shayarilok_official" target="_blank" rel="noopener noreferrer" class="social-pill" id="social-instagram" aria-label="Instagram Profile">
+              <span class="social-icon">
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                  <defs>
+                    <linearGradient id="igGradSite" x1="0%" y1="100%" x2="100%" y2="0%">
+                      <stop offset="0%" stop-color="#feda75" />
+                      <stop offset="35%" stop-color="#fa7e1e" />
+                      <stop offset="65%" stop-color="#d62976" />
+                      <stop offset="100%" stop-color="#962fbf" />
+                    </linearGradient>
+                  </defs>
+                  <path fill="url(#igGradSite)" d="M7.8 2h8.4A5.8 5.8 0 0 1 22 7.8v8.4a5.8 5.8 0 0 1-5.8 5.8H7.8A5.8 5.8 0 0 1 2 16.2V7.8A5.8 5.8 0 0 1 7.8 2Zm0 2A3.8 3.8 0 0 0 4 7.8v8.4A3.8 3.8 0 0 0 7.8 20h8.4a3.8 3.8 0 0 0 3.8-3.8V7.8A3.8 3.8 0 0 0 16.2 4H7.8Zm9.65 1.5a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 0 1 0-2.5ZM12 7a5 5 0 1 1 0 10 5 5 0 0 1 0-10Zm0 2a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z" />
+                </svg>
+              </span>
+              <span>Instagram</span>
+            </a>
+
+            <a href="https://www.youtube.com/@shayarilok" target="_blank" rel="noopener noreferrer" class="social-pill" id="social-youtube" aria-label="YouTube Channel">
+              <span class="social-icon">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="#FF0000" aria-hidden="true">
+                  <path d="M23.5 6.19a3.02 3.02 0 0 0-2.12-2.14C19.5 3.54 12 3.54 12 3.54s-7.5 0-9.38.51A3.02 3.02 0 0 0 .5 6.19C0 8.08 0 12 0 12s0 3.92.5 5.81a3.02 3.02 0 0 0 2.12 2.14c1.88.51 9.38.51 9.38.51s7.5 0 9.38-.51a3.02 3.02 0 0 0 2.12-2.14c.5-1.89.5-5.81.5-5.81s0-3.92-.5-5.81ZM9.55 15.57V8.43L15.82 12l-6.27 3.57Z" />
+                </svg>
+              </span>
+              <span>YouTube</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </footer>
+
+    <div class="copy-toast" id="copy-toast" role="status" aria-live="polite">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#a7f3d0" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <polyline points="20 6 9 17 4 12" />
+      </svg>
+      <span id="copy-toast-text">Copied Successfully!</span>
     </div>
-    <script type="module" src="./src/websiteMain.tsx"></script>
+
+    <script>
+      (function () {
+        var FALLBACK_CONFIG = {
+          app_name: 'Shayari Lok',
+          latest_version_code: 1,
+          force_update_url: 'https://play.google.com/store/apps/details?id=com.cyberking.shayarilok',
+          maintenance_mode: false,
+          maintenance_message: 'हम ऐप को और बेहतर बना रहे हैं। कृपया कुछ समय बाद पुनः प्रयास करें।',
+          privacy_policy_url: './privacy.html',
+          social_link: 'https://t.me/shayarilok_official',
+          announcement_title: 'नई हिंदी शायरी संग्रह लाइव है',
+          announcement_message: 'आज ही नई चुनिंदा शायरियाँ पढ़ें और दोस्तों के साथ शेयर करें।',
+          notifications: [
+            {
+              id: 2,
+              title: 'सच्चा प्यार',
+              message: 'तेरी मुस्कान में मेरी दुनिया बसती है,\nतेरी हर बात दिल को छू जाती है। ❤️🌹',
+              badge: 'Shayari Alert',
+              time_label: 'Today'
+            },
+            {
+              id: 1,
+              title: 'Shayari Lok Live',
+              message: 'नया हिंदी शायरी और सुविचार संग्रह अब वेबसाइट पर उपलब्ध है।',
+              badge: 'App Info',
+              time_label: 'Pinned'
+            }
+          ],
+          categories: ['All', 'General'],
+          shayari_list: [
+            {
+              id: 2,
+              category: 'General',
+              text: 'मुस्कुराना सीख लो, चाहे हालात कैसे भी हों,\nखुश रहना सीख लो, चाहे दिन कैसे भी हों।\nजिंदगी हर किसी को एक जैसा मौका नहीं देती,\nलेकिन हर सुबह एक नई उम्मीद जरूर देती है। ❤️🌹',
+              author: 'जिंदगी का खूबसूरत सफर',
+              image_url: ''
+            },
+            {
+              id: 1,
+              category: 'General',
+              text: 'कभी हँसते चेहरे के पीछे दर्द छुपा होता है,\nहर किसी के दिल में एक राज़ छुपा होता है।\nमुस्कुराकर जीना भी एक हुनर है दोस्तों,\nक्योंकि हर मुस्कुराते इंसान का दिल खुश नहीं होता। ❤️',
+              author: 'दिल की खामोशी',
+              image_url: ''
+            }
+          ]
+        };
+
+        var DEFAULT_SUVICHAR = [
+          {
+            id: 1,
+            category: 'सफलता',
+            author: 'चाणक्य नीति प्रेरणा',
+            text: 'सफलता किसी बड़े अवसर का इंतज़ार नहीं करती, बल्कि हर छोटे दिन को ईमानदारी से निखारने से बनती है।'
+          },
+          {
+            id: 2,
+            category: 'सकारात्मकता',
+            author: 'शायरी लोक डेस्क',
+            text: 'जब सोच शांत और नीयत साफ़ होती है, तो सबसे कठिन रास्ते भी धीरे-धीरे आसान दिखाई देने लगते हैं।'
+          },
+          {
+            id: 3,
+            category: 'जीवन',
+            author: 'कबीर वाणी भाव',
+            text: 'समय का सही उपयोग और मीठे बोल—ये दोनों इंसान की सबसे बड़ी पूंजी हैं जो हर जगह सम्मान दिलाती हैं।'
+          },
+          {
+            id: 4,
+            category: 'आत्मविश्वास',
+            author: 'सुविचार संग्रह',
+            text: 'मुश्किलें केवल यह परखने आती हैं कि आप अपने सपनों को सच करने के लिए कितने समर्पित हैं।'
+          }
+        ];
+
+        var DEFAULT_PHOTO_CARDS = [
+          {
+            id: 1,
+            category: 'Love',
+            author: 'आरज़ू',
+            themeClass: 'theme-sunset',
+            text: 'शाम ढलते ही तेरी यादों के चिराग़ जल उठते हैं,\nखामोश समंदर में भी दिल के जज़्बात मचल उठते हैं।'
+          },
+          {
+            id: 2,
+            category: 'Motivation',
+            author: 'सवेरा',
+            themeClass: 'theme-morning',
+            text: 'हर सुबह एक नया कोरा पन्ना लेकर आती है,\nसच्ची मेहनत उस पर सुनहरी कहानी लिख जाती है।'
+          },
+          {
+            id: 3,
+            category: 'Sad',
+            author: 'अमन',
+            themeClass: 'theme-rain',
+            text: 'खिड़की पर गिरती बारिश की हर बूँद पूछती है,\nवो कौन था जो बरसों से दिल के शहर में बसता है।'
+          },
+          {
+            id: 4,
+            category: 'Attitude',
+            author: 'शायरी लोक',
+            themeClass: 'theme-ink',
+            text: 'क़लम की स्याही से लिखते हैं हम अपना मुक़द्दर,\nतूफ़ानों से डर जाएँ, इतने कमज़ोर नहीं हमारे सफ़र।'
+          }
+        ];
+
+        var state = {
+          page: 'home',
+          category: 'All',
+          search: '',
+          suvicharCategory: 'All',
+          config: FALLBACK_CONFIG,
+          suvichars: DEFAULT_SUVICHAR,
+          photoCards: DEFAULT_PHOTO_CARDS,
+          heroHeadline: 'दिल की बात, फोटो शायरी और सुविचार के साथ।',
+          heroSubheadline: 'Shayari Lok का लाइव पब्लिक पोर्टल — खूबसूरत फोटो शायरी कार्ड्स, आज के सुविचार, ताज़ा नोटिफिकेशन और एंड्रॉइड ऐप अपडेट एक ही जगह।',
+          socialLinks: {
+            whatsapp: 'https://whatsapp.com/channel/0029VaShayariLok',
+            facebook: 'https://www.facebook.com/shayarilok.official',
+            instagram: 'https://www.instagram.com/shayarilok_official',
+            youtube: 'https://www.youtube.com/@shayarilok'
+          }
+        };
+
+        function readInitialPage() {
+          try {
+            var p = new URLSearchParams(window.location.search).get('page');
+            if (p === 'shayari' || p === 'suvichar' || p === 'updates' || p === 'home') {
+              return p;
+            }
+          } catch (e) {}
+          return 'home';
+        }
+        state.page = readInitialPage();
+
+        function escapeHtml(str) {
+          return String(str || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+        }
+
+        var toastTimer = null;
+        function showCopiedToast(msg) {
+          var toast = document.getElementById('copy-toast');
+          var textEl = document.getElementById('copy-toast-text');
+          if (!toast) return;
+          if (textEl) textEl.textContent = msg || 'Copied Successfully!';
+          toast.classList.add('show');
+          if (toastTimer) clearTimeout(toastTimer);
+          toastTimer = setTimeout(function () {
+            toast.classList.remove('show');
+          }, 2300);
+        }
+
+        function copyText(text) {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(function () {
+              showCopiedToast('Copied Successfully!');
+            }).catch(function () {
+              fallbackCopy(text);
+            });
+          } else {
+            fallbackCopy(text);
+          }
+        }
+
+        function fallbackCopy(text) {
+          var ta = document.createElement('textarea');
+          ta.value = text;
+          ta.setAttribute('readonly', '');
+          ta.style.position = 'fixed';
+          ta.style.top = '-9999px';
+          document.body.appendChild(ta);
+          ta.select();
+          try {
+            if (document.execCommand('copy')) showCopiedToast('Copied Successfully!');
+          } finally {
+            ta.remove();
+          }
+        }
+
+        function themeClassFromId(theme) {
+          if (theme === 'morning_chai') return 'theme-morning';
+          if (theme === 'monsoon_rain') return 'theme-rain';
+          if (theme === 'journal_ink') return 'theme-ink';
+          return 'theme-sunset';
+        }
+
+        function applySocialLinks() {
+          var map = {
+            whatsapp: 'social-whatsapp',
+            facebook: 'social-facebook',
+            instagram: 'social-instagram',
+            youtube: 'social-youtube'
+          };
+          Object.keys(map).forEach(function (k) {
+            var el = document.getElementById(map[k]);
+            if (el && state.socialLinks[k]) {
+              el.href = state.socialLinks[k];
+            }
+          });
+        }
+
+        function syncHeaderAndChrome() {
+          var brand = state.config.app_name || 'Shayari Lok';
+          document.getElementById('header-brand').textContent = brand;
+          document.getElementById('footer-brand').textContent = brand;
+
+          var dl = document.getElementById('header-download-btn');
+          if (dl && state.config.force_update_url) {
+            dl.href = state.config.force_update_url;
+          }
+
+          var notifs = Array.isArray(state.config.notifications) ? state.config.notifications : [];
+          document.getElementById('bell-count').textContent = String(notifs.length);
+
+          var popList = document.getElementById('notif-popover-list');
+          if (popList) {
+            popList.innerHTML = notifs.length
+              ? notifs.map(function (n) {
+                  return (
+                    '<div class="notif-item">' +
+                    '<div class="notif-item-meta"><span>' + escapeHtml(n.badge || 'Alert') + '</span><span>' + escapeHtml(n.time_label || 'Today') + '</span></div>' +
+                    '<div class="notif-item-title">' + escapeHtml(n.title) + '</div>' +
+                    '<div class="notif-item-msg">' + escapeHtml(n.message) + '</div>' +
+                    '</div>'
+                  );
+                }).join('')
+              : '<div style="padding:14px;font-size:13px;color:#64748b;text-align:center;">No active notifications</div>';
+          }
+
+          var maint = document.getElementById('maintenance-strip');
+          if (maint) {
+            if (state.config.maintenance_mode) {
+              maint.textContent = state.config.maintenance_message || 'ऐप मेंटेनेंस पर है, कृपया कुछ समय बाद प्रयास करें।';
+              maint.classList.add('show');
+            } else {
+              maint.classList.remove('show');
+            }
+          }
+
+          document.querySelectorAll('[data-page]').forEach(function (el) {
+            var target = el.getAttribute('data-page');
+            if (el.classList.contains('nav-item') || el.classList.contains('m-link')) {
+              el.classList.toggle('active', target === state.page);
+            }
+          });
+
+          applySocialLinks();
+        }
+
+        function renderShayariCardHtml(item) {
+          var formattedCopy = escapeHtml(item.text) + '\n\n— ' + escapeHtml(item.author || 'Shayari Lok');
+          var waHref = 'https://wa.me/?text=' + encodeURIComponent(item.text + '\n\n— ' + (item.author || 'Shayari Lok') + ' (' + (state.config.app_name || 'Shayari Lok') + ')');
+          var imgHtml = item.image_url
+            ? '<img src="' + escapeHtml(item.image_url) + '" alt="' + escapeHtml(item.category) + ' Shayari" class="card-photo" loading="lazy" />'
+            : '';
+
+          return (
+            '<article class="shayari-card">' +
+            '<div>' +
+            imgHtml +
+            '<div class="card-meta">' + escapeHtml(item.category || 'General') + ' · #' + escapeHtml(item.id) + '</div>' +
+            '<p class="card-text">' + escapeHtml(item.text) + '</p>' +
+            '</div>' +
+            '<div class="card-footer">' +
+            '<span class="card-author">— ' + escapeHtml(item.author || 'अज्ञात') + '</span>' +
+            '<div class="card-actions">' +
+            '<button type="button" class="btn-xs copy-item-btn" data-copy="' + formattedCopy + '">Copy</button>' +
+            '<a href="' + waHref + '" target="_blank" rel="noopener noreferrer" class="btn-xs btn-xs-wa">WhatsApp</a>' +
+            '</div>' +
+            '</div>' +
+            '</article>'
+          );
+        }
+
+        function renderFilteredShayaris() {
+          var list = Array.isArray(state.config.shayari_list) ? state.config.shayari_list : [];
+          var q = state.search.trim().toLowerCase();
+          var filtered = list.filter(function (item) {
+            var catMatch = state.category === 'All' || item.category === state.category;
+            if (!catMatch) return false;
+            if (!q) return true;
+            return (
+              String(item.text || '').toLowerCase().indexOf(q) !== -1 ||
+              String(item.author || '').toLowerCase().indexOf(q) !== -1 ||
+              String(item.category || '').toLowerCase().indexOf(q) !== -1
+            );
+          });
+
+          if (!filtered.length) {
+            return '<div class="shayari-card"><p class="card-text" style="color:#64748b;margin:0;">कोई शायरी नहीं मिली — कृपया सर्च या कैटेगरी बदलें।</p></div>';
+          }
+          return filtered.map(renderShayariCardHtml).join('');
+        }
+
+        function renderPage() {
+          syncHeaderAndChrome();
+          var main = document.getElementById('main-content');
+          var cfg = state.config;
+          var list = Array.isArray(cfg.shayari_list) ? cfg.shayari_list : [];
+          var cats = Array.isArray(cfg.categories) && cfg.categories.length ? cfg.categories : ['All', 'General'];
+          var featured = list[0] || FALLBACK_CONFIG.shayari_list[0];
+
+          if (state.page === 'home') {
+            main.innerHTML =
+              '<section class="hero-grid">' +
+                '<div class="hero-card">' +
+                  '<div>' +
+                    '<div class="hero-eyebrow font-mono">CyberKing Studio · com.cyberking.shayarilok · v' + escapeHtml(cfg.latest_version_code || 1) + '</div>' +
+                    '<h1 class="hero-title font-serif">' + escapeHtml(state.heroHeadline) + '</h1>' +
+                    '<p class="hero-sub">' + escapeHtml(state.heroSubheadline) + '</p>' +
+                  '</div>' +
+                  '<div class="announce-box">' +
+                    '<div class="announce-title">' + escapeHtml(cfg.announcement_title || 'ताज़ा अपडेट') + '</div>' +
+                    '<div class="announce-msg">' + escapeHtml(cfg.announcement_message || '') + '</div>' +
+                  '</div>' +
+                  '<div class="hero-cta-row">' +
+                    '<button type="button" class="btn-green" data-page="shayari">Explore All Shayaris</button>' +
+                    '<button type="button" class="btn-soft" data-page="suvichar">आज के सुविचार (' + state.suvichars.length + ')</button>' +
+                    '<a href="./privacy.html" class="btn-outline">Privacy Policy</a>' +
+                  '</div>' +
+                '</div>' +
+                '<div class="hero-showcase">' +
+                  '<span class="showcase-badge">Featured Shayari</span>' +
+                  '<div class="showcase-quote font-serif">' + escapeHtml(featured.text) + '</div>' +
+                  '<div class="showcase-foot">' +
+                    '<span>— ' + escapeHtml(featured.author || 'Shayari Lok') + '</span>' +
+                    '<button type="button" class="btn-xs copy-item-btn" data-copy="' + escapeHtml(featured.text) + '">Copy Quote</button>' +
+                  '</div>' +
+                '</div>' +
+              '</section>' +
+
+              '<section class="stats-grid">' +
+                '<div class="stat-card"><div class="stat-label">Live Shayaris</div><div class="stat-val">' + list.length + '</div></div>' +
+                '<div class="stat-card"><div class="stat-label">Photo &amp; Suvichar</div><div class="stat-val">' + (state.photoCards.length + state.suvichars.length) + '</div></div>' +
+                '<div class="stat-card"><div class="stat-label">Active Alerts</div><div class="stat-val">' + (cfg.notifications ? cfg.notifications.length : 0) + '</div></div>' +
+                '<div class="stat-card"><div class="stat-label">Android Release</div><div class="stat-val font-mono">v' + escapeHtml(cfg.latest_version_code || 1) + '</div></div>' +
+              '</section>' +
+
+              '<section>' +
+                '<div class="sec-head" style="margin-bottom:16px;">' +
+                  '<div class="sec-kicker">Photo Shayari Gallery</div>' +
+                  '<h2 class="sec-title">फोटो शायरी डिज़ाइन कार्ड्स</h2>' +
+                  '<p class="sec-desc">चुनिंदा हिंदी शायरियाँ — एक क्लिक में कॉपी करें या WhatsApp पर शेयर करें।</p>' +
+                '</div>' +
+                '<div class="cards-grid">' +
+                  state.photoCards.map(function (card) {
+                    var waUrl = 'https://wa.me/?text=' + encodeURIComponent(card.text + '\n\n— ' + card.author);
+                    return (
+                      '<div class="photo-card ' + escapeHtml(card.themeClass || 'theme-sunset') + '">' +
+                        '<div class="photo-card-cat">' + escapeHtml(card.category) + '</div>' +
+                        '<p class="photo-card-text">' + escapeHtml(card.text) + '</p>' +
+                        '<div class="card-footer" style="border-top-color:rgba(255,255,255,0.18);">' +
+                          '<span style="font-size:12.5px;color:rgba(255,255,255,0.85);">— ' + escapeHtml(card.author) + '</span>' +
+                          '<div class="card-actions">' +
+                            '<button type="button" class="btn-xs copy-item-btn" data-copy="' + escapeHtml(card.text) + '">Copy</button>' +
+                            '<a href="' + waUrl + '" target="_blank" rel="noopener noreferrer" class="btn-xs">Share</a>' +
+                          '</div>' +
+                        '</div>' +
+                      '</div>'
+                    );
+                  }).join('') +
+                '</div>' +
+              '</section>' +
+
+              '<section>' +
+                '<div class="sec-head" style="margin-bottom:16px;">' +
+                  '<div class="sec-kicker">Live Collection</div>' +
+                  '<h2 class="sec-title">Featured Shayari Collection</h2>' +
+                  '<p class="sec-desc">कैटेगरी चुनें या सर्च करें और सीधे कॉपी करें।</p>' +
+                '</div>' +
+                '<div class="filter-bar" style="margin-bottom:18px;">' +
+                  '<div class="chips-row">' +
+                    cats.map(function (c) {
+                      return '<button type="button" class="chip-btn ' + (state.category === c ? 'active' : '') + '" data-cat="' + escapeHtml(c) + '">' + escapeHtml(c) + '</button>';
+                    }).join('') +
+                  '</div>' +
+                  '<input type="search" class="search-input" id="shayari-search-input" placeholder="हिंदी या Hinglish में शायरी खोजें..." value="' + escapeHtml(state.search) + '" />' +
+                '</div>' +
+                '<div class="cards-grid" id="shayari-grid">' + renderFilteredShayaris() + '</div>' +
+              '</section>' +
+
+              '<section class="privacy-callout">' +
+                '<div>' +
+                  '<h3>Privacy Policy &amp; App Transparency</h3>' +
+                  '<p>हमारी स्वतंत्र और पारदर्शी प्राइवेसी पॉलिसी पढ़ने या Google Play पर शेयर करने के लिए अलग पेज खोलें।</p>' +
+                '</div>' +
+                '<a href="./privacy.html" class="btn-green">Open Privacy Policy Page</a>' +
+              '</section>';
+          } else if (state.page === 'shayari') {
+            main.innerHTML =
+              '<section>' +
+                '<div class="sec-head" style="margin-bottom:16px;">' +
+                  '<div class="sec-kicker">Shayari Library</div>' +
+                  '<h1 class="sec-title font-serif">All Hindi &amp; Hinglish Shayaris (' + list.length + ')</h1>' +
+                  '<p class="sec-desc">सभी कैटेगरी में ताज़ा और चुनिंदा शायरियाँ।</p>' +
+                '</div>' +
+                '<div class="filter-bar" style="margin-bottom:18px;">' +
+                  '<div class="chips-row">' +
+                    cats.map(function (c) {
+                      return '<button type="button" class="chip-btn ' + (state.category === c ? 'active' : '') + '" data-cat="' + escapeHtml(c) + '">' + escapeHtml(c) + '</button>';
+                    }).join('') +
+                  '</div>' +
+                  '<input type="search" class="search-input" id="shayari-search-input" placeholder="हिंदी या Hinglish में शायरी खोजें..." value="' + escapeHtml(state.search) + '" />' +
+                '</div>' +
+                '<div class="cards-grid" id="shayari-grid">' + renderFilteredShayaris() + '</div>' +
+              '</section>';
+          } else if (state.page === 'suvichar') {
+            main.innerHTML =
+              '<section>' +
+                '<div class="sec-head" style="margin-bottom:18px;">' +
+                  '<div class="sec-kicker">Daily Inspiration</div>' +
+                  '<h1 class="sec-title font-serif">आज के सुविचार (Suvichar)</h1>' +
+                  '<p class="sec-desc">सफलता, सकारात्मक सोच और आत्मविश्वास से जुड़े प्रेरणादायक विचार।</p>' +
+                '</div>' +
+                '<div class="cards-grid">' +
+                  state.suvichars.map(function (suv) {
+                    var waUrl = 'https://wa.me/?text=' + encodeURIComponent('“' + suv.text + '”\n— ' + suv.author);
+                    return (
+                      '<article class="shayari-card">' +
+                        '<div>' +
+                          '<div class="card-meta">' + escapeHtml(suv.category) + ' · सुविचार #' + escapeHtml(suv.id) + '</div>' +
+                          '<p class="card-text">“' + escapeHtml(suv.text) + '”</p>' +
+                        '</div>' +
+                        '<div class="card-footer">' +
+                          '<span class="card-author">— ' + escapeHtml(suv.author) + '</span>' +
+                          '<div class="card-actions">' +
+                            '<button type="button" class="btn-xs copy-item-btn" data-copy="' + escapeHtml(suv.text) + '">Copy</button>' +
+                            '<a href="' + waUrl + '" target="_blank" rel="noopener noreferrer" class="btn-xs btn-xs-wa">WhatsApp</a>' +
+                          '</div>' +
+                        '</div>' +
+                      '</article>'
+                    );
+                  }).join('') +
+                '</div>' +
+              '</section>';
+          } else if (state.page === 'updates') {
+            var notifs = Array.isArray(cfg.notifications) ? cfg.notifications : [];
+            main.innerHTML =
+              '<section>' +
+                '<div class="sec-head" style="margin-bottom:18px;">' +
+                  '<div class="sec-kicker">Announcements &amp; Alerts</div>' +
+                  '<h1 class="sec-title font-serif">Live App Updates &amp; Notifications</h1>' +
+                  '<p class="sec-desc">Shayari Lok ऐप के नवीनतम नोटिफिकेशन, रिलीज़ जानकारी और प्राइवेसी लिंक।</p>' +
+                '</div>' +
+                '<div class="cards-grid">' +
+                  notifs.map(function (n) {
+                    return (
+                      '<article class="shayari-card">' +
+                        '<div>' +
+                          '<div class="card-meta">' + escapeHtml(n.badge || 'Alert') + ' · ' + escapeHtml(n.time_label || 'Today') + '</div>' +
+                          '<h3 style="margin:8px 0 0;font-size:17px;">' + escapeHtml(n.title) + '</h3>' +
+                          '<p class="card-text" style="font-size:14.5px;">' + escapeHtml(n.message) + '</p>' +
+                        '</div>' +
+                        '<div class="card-footer">' +
+                          '<span class="card-author">Notification #' + escapeHtml(n.id) + '</span>' +
+                          '<button type="button" class="btn-xs copy-item-btn" data-copy="' + escapeHtml(n.title + '\n' + n.message) + '">Copy</button>' +
+                        '</div>' +
+                      '</article>'
+                    );
+                  }).join('') +
+                '</div>' +
+              '</section>' +
+              '<section class="privacy-callout" style="margin-top:8px;">' +
+                '<div>' +
+                  '<h3>Privacy Policy &amp; App Terms</h3>' +
+                  '<p>हमारी आधिकारिक प्राइवेसी पॉलिसी और Google AdMob पारदर्शिता विवरण अलग पेज पर पढ़ें।</p>' +
+                '</div>' +
+                '<a href="./privacy.html" class="btn-green">Read Privacy Policy</a>' +
+              '</section>';
+          }
+        }
+
+        function setPage(nextPage) {
+          state.page = nextPage;
+          if (window.history && window.history.replaceState) {
+            var url = new URL(window.location.href);
+            if (nextPage === 'home') {
+              url.searchParams.delete('page');
+            } else {
+              url.searchParams.set('page', nextPage);
+            }
+            window.history.replaceState(null, '', url.toString());
+          }
+          renderPage();
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        document.addEventListener('click', function (e) {
+          var pageBtn = e.target.closest('[data-page]');
+          if (pageBtn) {
+            var targetPage = pageBtn.getAttribute('data-page');
+            if (targetPage) {
+              setPage(targetPage);
+              var drawer = document.getElementById('mobile-drawer');
+              if (drawer) drawer.classList.remove('open');
+            }
+            return;
+          }
+
+          var catBtn = e.target.closest('[data-cat]');
+          if (catBtn) {
+            state.category = catBtn.getAttribute('data-cat') || 'All';
+            renderPage();
+            return;
+          }
+
+          var copyBtn = e.target.closest('.copy-item-btn');
+          if (copyBtn) {
+            var val = copyBtn.getAttribute('data-copy') || '';
+            if (val) copyText(val);
+            return;
+          }
+        });
+
+        document.addEventListener('input', function (e) {
+          if (e.target && e.target.id === 'shayari-search-input') {
+            state.search = e.target.value || '';
+            var grid = document.getElementById('shayari-grid');
+            if (grid) {
+              grid.innerHTML = renderFilteredShayaris();
+            }
+          }
+        });
+
+        var menuBtn = document.getElementById('mobile-menu-btn');
+        var mobileDrawer = document.getElementById('mobile-drawer');
+        if (menuBtn && mobileDrawer) {
+          menuBtn.addEventListener('click', function () {
+            var isOpen = mobileDrawer.classList.toggle('open');
+            menuBtn.setAttribute('aria-expanded', String(isOpen));
+          });
+        }
+
+        var bellBtn = document.getElementById('bell-btn');
+        var notifPopover = document.getElementById('notif-popover');
+        var closeNotifBtn = document.getElementById('close-notif-btn');
+        if (bellBtn && notifPopover) {
+          bellBtn.addEventListener('click', function () {
+            var open = notifPopover.classList.toggle('open');
+            bellBtn.setAttribute('aria-expanded', String(open));
+          });
+        }
+        if (closeNotifBtn && notifPopover && bellBtn) {
+          closeNotifBtn.addEventListener('click', function () {
+            notifPopover.classList.remove('open');
+            bellBtn.setAttribute('aria-expanded', 'false');
+          });
+        }
+
+        function mergeWebsiteContent(raw) {
+          if (!raw || typeof raw !== 'object') return;
+          if (typeof raw.heroHeadline === 'string' && raw.heroHeadline.trim()) {
+            state.heroHeadline = raw.heroHeadline.trim();
+          }
+          if (typeof raw.heroSubheadline === 'string' && raw.heroSubheadline.trim()) {
+            state.heroSubheadline = raw.heroSubheadline.trim();
+          }
+          if (Array.isArray(raw.suvichar_list) && raw.suvichar_list.length) {
+            state.suvichars = raw.suvichar_list;
+          }
+          if (Array.isArray(raw.photo_shayari_list) && raw.photo_shayari_list.length) {
+            state.photoCards = raw.photo_shayari_list.map(function (c) {
+              return {
+                id: c.id,
+                category: c.category || 'Love',
+                author: c.author || 'शायरी लोक',
+                text: c.text || '',
+                themeClass: themeClassFromId(c.theme)
+              };
+            });
+          }
+          if (raw.socialLinks && typeof raw.socialLinks === 'object') {
+            ['whatsapp', 'facebook', 'instagram', 'youtube'].forEach(function (k) {
+              if (typeof raw.socialLinks[k] === 'string' && raw.socialLinks[k].trim()) {
+                state.socialLinks[k] = raw.socialLinks[k].trim();
+              }
+            });
+          }
+        }
+
+        try {
+          var savedDraft = localStorage.getItem('shayari_lok_local_draft');
+          if (savedDraft) {
+            var parsedDraft = JSON.parse(savedDraft);
+            if (parsedDraft && Array.isArray(parsedDraft.shayari_list)) {
+              state.config = parsedDraft;
+            }
+          }
+          var savedSite = localStorage.getItem('shayari_lok_website_content_v1');
+          if (savedSite) {
+            mergeWebsiteContent(JSON.parse(savedSite));
+          }
+        } catch (e) {}
+
+        renderPage();
+
+        fetch('./config.json', { cache: 'no-store' })
+          .then(function (r) {
+            return r.ok ? r.json() : null;
+          })
+          .then(function (liveCfg) {
+            if (liveCfg && Array.isArray(liveCfg.shayari_list)) {
+              state.config = liveCfg;
+              renderPage();
+            }
+          })
+          .catch(function () {});
+
+        if (typeof BroadcastChannel !== 'undefined') {
+          try {
+            var ch = new BroadcastChannel('shayari_lok_live_sync');
+            ch.onmessage = function (ev) {
+              if (!ev || !ev.data) return;
+              if (ev.data.config && Array.isArray(ev.data.config.shayari_list)) {
+                state.config = ev.data.config;
+              }
+              if (ev.data.websiteContent) {
+                mergeWebsiteContent(ev.data.websiteContent);
+              }
+              renderPage();
+            };
+          } catch (e) {}
+        }
+      })();
+    </script>
   </body>
 </html>

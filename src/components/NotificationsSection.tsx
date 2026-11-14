@@ -26,7 +26,10 @@ import type {
   WebsiteVisibilityControls,
 } from '../types/config';
 import { getNextId } from '../utils/configHelpers';
-import { PHOTO_THEME_META } from '../utils/websiteContent';
+import {
+  DEFAULT_WEBSITE_SOCIAL_LINKS,
+  PHOTO_THEME_META,
+} from '../utils/websiteContent';
 
 interface NotificationsSectionProps {
   config: ShayariLokConfig;
@@ -389,6 +392,50 @@ export const NotificationsSection: React.FC<NotificationsSectionProps> = ({
               }
               className="w-full px-3.5 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500"
             />
+          </div>
+        </div>
+
+        <div className="pt-2 border-t border-slate-100 space-y-2.5">
+          <div className="text-xs font-semibold text-slate-700">
+            Website Footer Social Media Links (WhatsApp · Facebook · Instagram · YouTube)
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {(
+              [
+                { key: 'whatsapp', label: 'WhatsApp Channel / Link' },
+                { key: 'facebook', label: 'Facebook Page URL' },
+                { key: 'instagram', label: 'Instagram Profile URL' },
+                { key: 'youtube', label: 'YouTube Channel URL' },
+              ] as const
+            ).map((soc) => {
+              const currentLinks =
+                websiteContent.socialLinks ?? DEFAULT_WEBSITE_SOCIAL_LINKS;
+              return (
+                <div key={soc.key}>
+                  <label
+                    htmlFor={`website-social-${soc.key}`}
+                    className="block text-[11px] font-medium text-slate-500 mb-1"
+                  >
+                    {soc.label}
+                  </label>
+                  <input
+                    id={`website-social-${soc.key}`}
+                    type="url"
+                    value={currentLinks[soc.key]}
+                    onChange={(e) =>
+                      onUpdateWebsiteContent({
+                        ...websiteContent,
+                        socialLinks: {
+                          ...currentLinks,
+                          [soc.key]: e.target.value,
+                        },
+                      })
+                    }
+                    className="w-full px-3 py-1.5 text-xs font-mono bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+              );
+            })}
           </div>
         </div>
       </section>

@@ -34,7 +34,10 @@ import {
   resolveEffectivePolicyUrl,
   type PublicSitePageId,
 } from '../utils/siteRoutes';
-import { PHOTO_THEME_META } from '../utils/websiteContent';
+import {
+  DEFAULT_WEBSITE_SOCIAL_LINKS,
+  PHOTO_THEME_META,
+} from '../utils/websiteContent';
 
 interface PublicWebsiteViewProps {
   page: PublicSitePageId;
@@ -1491,60 +1494,122 @@ export const PublicWebsiteView: React.FC<PublicWebsiteViewProps> = ({
 
       {/* Classic Dark Footer (#222222) — Zero Admin Console Links */}
       <footer className="bg-[#222222] text-slate-300 border-t border-black/30 px-4 sm:px-8 py-7 mt-auto">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-xs">
-          <div className="space-y-1">
-            <div className="font-editorial-serif text-base font-bold text-white">
-              {brandName}
+        <div className="max-w-7xl mx-auto space-y-5 text-xs">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="font-editorial-serif text-base font-bold text-white">
+                {brandName}
+              </div>
+              <div className="text-slate-400">
+                {orgName} · {PACKAGE_ID}
+                {publicSyncState === 'live' && ' · Real-Time Live Sync Active'}
+              </div>
             </div>
-            <div className="text-slate-400">
-              {orgName} · {PACKAGE_ID}
-              {publicSyncState === 'live' && ' · Real-Time Live Sync Active'}
+            <div className="flex flex-wrap items-center gap-4">
+              {SITE_NAV_ITEMS.map((item) => {
+                if (
+                  !onBackToAdmin &&
+                  item.id === 'privacy' &&
+                  standalonePrivacyHref &&
+                  !isPrivacyOnlyMode
+                ) {
+                  return (
+                    <a
+                      key={item.id}
+                      href={standalonePrivacyHref}
+                      className="text-slate-300 hover:text-white transition-colors"
+                    >
+                      {item.label}
+                    </a>
+                  );
+                }
+                if (isPrivacyOnlyMode && item.id !== 'privacy' && standaloneWebsiteHref) {
+                  const targetUrl =
+                    item.id === 'home'
+                      ? standaloneWebsiteHref
+                      : `${standaloneWebsiteHref}${standaloneWebsiteHref.includes('?') ? '&' : '?'}page=${item.id}`;
+                  return (
+                    <a
+                      key={item.id}
+                      href={targetUrl}
+                      className="text-slate-300 hover:text-white transition-colors"
+                    >
+                      {item.label}
+                    </a>
+                  );
+                }
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => onNavigatePage(item.id)}
+                    className="text-slate-300 hover:text-white transition-colors"
+                  >
+                    {item.label}
+                  </button>
+                );
+              })}
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-4">
-            {SITE_NAV_ITEMS.map((item) => {
-              if (
-                !onBackToAdmin &&
-                item.id === 'privacy' &&
-                standalonePrivacyHref &&
-                !isPrivacyOnlyMode
-              ) {
+
+          <div className="pt-4 border-t border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <span className="text-slate-400">
+              Follow Shayari Lok on official social channels:
+            </span>
+            <div className="flex flex-wrap items-center gap-2.5">
+              {(() => {
+                const links =
+                  websiteContent.socialLinks ?? DEFAULT_WEBSITE_SOCIAL_LINKS;
                 return (
-                  <a
-                    key={item.id}
-                    href={standalonePrivacyHref}
-                    className="text-slate-300 hover:text-white transition-colors"
-                  >
-                    {item.label}
-                  </a>
+                  <>
+                    <a
+                      href={links.whatsapp}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 border border-white/15 text-white hover:bg-white/20 transition-colors"
+                    >
+                      <svg viewBox="0 0 24 24" className="w-4 h-4 fill-[#25D366]" aria-hidden="true">
+                        <path d="M12.03 2C6.51 2 2.02 6.49 2.02 12c0 1.77.46 3.49 1.34 5.01L2 22l5.12-1.34A9.96 9.96 0 0 0 12.03 22C17.55 22 22.04 17.51 22.04 12S17.55 2 12.03 2Zm5.82 14.18c-.25.7-1.44 1.34-2 1.42-.52.08-1.18.11-1.91-.12-.44-.14-1-.32-1.72-.63-3.03-1.31-5.01-4.37-5.16-4.57-.15-.2-1.23-1.64-1.23-3.13 0-1.49.78-2.22 1.06-2.52.28-.3.61-.38.81-.38h.58c.19 0 .44-.07.69.53.25.6.86 2.1.94 2.25.08.15.13.33.03.53-.1.2-.15.33-.3.5-.15.18-.32.4-.45.54-.15.15-.31.31-.13.62.18.31.79 1.31 1.7 2.12 1.17 1.04 2.15 1.36 2.46 1.52.3.15.48.13.66-.08.18-.2.76-.89.96-1.19.2-.3.41-.25.69-.15.28.1 1.78.84 2.08.99.3.15.51.23.58.35.08.13.08.73-.17 1.43Z" />
+                      </svg>
+                      <span className="font-semibold">WhatsApp</span>
+                    </a>
+                    <a
+                      href={links.facebook}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 border border-white/15 text-white hover:bg-white/20 transition-colors"
+                    >
+                      <svg viewBox="0 0 24 24" className="w-4 h-4 fill-[#1877F2]" aria-hidden="true">
+                        <path d="M22 12.06C22 6.5 17.52 2 12 2S2 6.5 2 12.06c0 5.02 3.66 9.18 8.44 9.94v-7.03H7.9v-2.91h2.54V9.85c0-2.52 1.49-3.91 3.78-3.91 1.1 0 2.24.2 2.24.2v2.47h-1.26c-1.24 0-1.63.77-1.63 1.57v1.88h2.78l-.44 2.91h-2.34V22C18.34 21.24 22 17.08 22 12.06Z" />
+                      </svg>
+                      <span className="font-semibold">Facebook</span>
+                    </a>
+                    <a
+                      href={links.instagram}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 border border-white/15 text-white hover:bg-white/20 transition-colors"
+                    >
+                      <svg viewBox="0 0 24 24" className="w-4 h-4 fill-[#E4405F]" aria-hidden="true">
+                        <path d="M7.8 2h8.4A5.8 5.8 0 0 1 22 7.8v8.4a5.8 5.8 0 0 1-5.8 5.8H7.8A5.8 5.8 0 0 1 2 16.2V7.8A5.8 5.8 0 0 1 7.8 2Zm0 2A3.8 3.8 0 0 0 4 7.8v8.4A3.8 3.8 0 0 0 7.8 20h8.4a3.8 3.8 0 0 0 3.8-3.8V7.8A3.8 3.8 0 0 0 16.2 4H7.8Zm9.65 1.5a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 0 1 0-2.5ZM12 7a5 5 0 1 1 0 10 5 5 0 0 1 0-10Zm0 2a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z" />
+                      </svg>
+                      <span className="font-semibold">Instagram</span>
+                    </a>
+                    <a
+                      href={links.youtube}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 border border-white/15 text-white hover:bg-white/20 transition-colors"
+                    >
+                      <svg viewBox="0 0 24 24" className="w-4 h-4 fill-[#FF0000]" aria-hidden="true">
+                        <path d="M23.5 6.19a3.02 3.02 0 0 0-2.12-2.14C19.5 3.54 12 3.54 12 3.54s-7.5 0-9.38.51A3.02 3.02 0 0 0 .5 6.19C0 8.08 0 12 0 12s0 3.92.5 5.81a3.02 3.02 0 0 0 2.12 2.14c1.88.51 9.38.51 9.38.51s7.5 0 9.38-.51a3.02 3.02 0 0 0 2.12-2.14c.5-1.89.5-5.81.5-5.81s0-3.92-.5-5.81ZM9.55 15.57V8.43L15.82 12l-6.27 3.57Z" />
+                      </svg>
+                      <span className="font-semibold">YouTube</span>
+                    </a>
+                  </>
                 );
-              }
-              if (isPrivacyOnlyMode && item.id !== 'privacy' && standaloneWebsiteHref) {
-                const targetUrl =
-                  item.id === 'home'
-                    ? standaloneWebsiteHref
-                    : `${standaloneWebsiteHref}${standaloneWebsiteHref.includes('?') ? '&' : '?'}page=${item.id}`;
-                return (
-                  <a
-                    key={item.id}
-                    href={targetUrl}
-                    className="text-slate-300 hover:text-white transition-colors"
-                  >
-                    {item.label}
-                  </a>
-                );
-              }
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => onNavigatePage(item.id)}
-                  className="text-slate-300 hover:text-white transition-colors"
-                >
-                  {item.label}
-                </button>
-              );
-            })}
+              })()}
+            </div>
           </div>
         </div>
       </footer>

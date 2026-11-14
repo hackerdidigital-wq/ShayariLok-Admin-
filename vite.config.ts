@@ -1,12 +1,47 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
-import path from 'path';
-import {defineConfig} from 'vite';
+import fs from 'node:fs';
+import path from 'node:path';
+import { defineConfig, type Plugin } from 'vite';
+
+function copyStandalonePublicPages(): Plugin {
+  return {
+    name: 'copy-standalone-public-pages',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        const rawUrl = (req.url || '').split('?')[0];
+        if (rawUrl === '/privacy-policy' || rawUrl === '/privacy-policy/') {
+          const filePath = path.resolve(
+            __dirname,
+            'public/privacy-policy/index.html'
+          );
+          if (fs.existsSync(filePath)) {
+            res.statusCode = 200;
+            res.setHeader('Content-Type', 'text/html; charset=utf-8');
+            res.end(fs.readFileSync(filePath, 'utf-8'));
+            return;
+          }
+        }
+        next();
+      });
+    },
+    closeBundle() {
+      const outDir = path.resolve(__dirname, 'dist');
+      if (!fs.existsSync(outDir)) return;
+      for (const fileName of ['website.html', 'privacy.html', 'config.json']) {
+        const src = path.resolve(__dirname, fileName);
+        if (fs.existsSync(src)) {
+          fs.copyFileSync(src, path.join(outDir, fileName));
+        }
+      }
+    },
+  };
+}
 
 export default defineConfig(() => {
   return {
     base: './',
-    plugins: [react(), tailwindcss()],
+    plugins: [react(), tailwindcss(), copyStandalonePublicPages()],
     build: {
       target: 'es2020',
       outDir: 'dist',
@@ -15,8 +50,6 @@ export default defineConfig(() => {
       rollupOptions: {
         input: {
           main: path.resolve(__dirname, 'index.html'),
-          website: path.resolve(__dirname, 'website.html'),
-          privacy: path.resolve(__dirname, 'privacy.html'),
         },
       },
     },

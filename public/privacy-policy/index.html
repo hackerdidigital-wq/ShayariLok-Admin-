@@ -1,0 +1,940 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Privacy Policy — Shayari Lok</title>
+    <meta
+      name="description"
+      content="Official Privacy Policy and Google AdMob data disclosure for the Shayari Lok Android application (com.cyberking.shayarilok) and official website."
+    />
+    <meta property="og:title" content="Privacy Policy — Shayari Lok" />
+    <meta
+      property="og:description"
+      content="Official Privacy Policy and data collection transparency page for Shayari Lok."
+    />
+    <meta property="og:type" content="website" />
+    <link rel="canonical" href="https://shayarilok.in/privacy-policy/" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Lora:wght@600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      :root {
+        --brand-green: #2d5e36;
+        --brand-green-dark: #234b2a;
+        --bg-stone: #f7f7f7;
+        --card-white: #ffffff;
+        --border-subtle: #e2e8f0;
+        --text-ink: #0f172a;
+        --text-body: #1e293b;
+        --text-muted: #475569;
+        --footer-bg: #222222;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        background-color: var(--bg-stone);
+        color: var(--text-ink);
+        font-family: 'Plus Jakarta Sans', 'Noto Sans Devanagari', system-ui, -apple-system, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .font-serif {
+        font-family: 'Lora', Georgia, Cambria, 'Times New Roman', Times, serif;
+      }
+
+      .font-mono {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      }
+
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+
+      .site-header {
+        position: sticky;
+        top: 0;
+        z-index: 40;
+        background-color: var(--brand-green);
+        color: #ffffff;
+        border-bottom: 1px solid var(--brand-green-dark);
+      }
+
+      .header-inner {
+        max-width: 1200px;
+        margin: 0 auto;
+        height: 60px;
+        padding: 0 12px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+
+      .brand-link {
+        font-size: 19px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        color: #ffffff;
+        white-space: nowrap;
+        flex-shrink: 0;
+      }
+
+      .desktop-nav {
+        display: none;
+        align-items: center;
+        gap: 24px;
+        font-size: 14px;
+        font-weight: 500;
+        color: rgba(236, 253, 245, 0.9);
+      }
+
+      .desktop-nav a {
+        padding-bottom: 2px;
+        border-bottom: 2px solid transparent;
+        transition: color 0.15s ease, border-color 0.15s ease;
+        white-space: nowrap;
+      }
+
+      .desktop-nav a:hover {
+        color: #ffffff;
+      }
+
+      .desktop-nav a.active {
+        color: #ffffff;
+        font-weight: 600;
+        border-bottom-color: #ffffff;
+      }
+
+      .header-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-shrink: 0;
+      }
+
+      .btn-download {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        background: #ffffff;
+        color: var(--brand-green);
+        font-size: 12px;
+        font-weight: 700;
+        padding: 7px 11px;
+        border-radius: 8px;
+        white-space: nowrap;
+        transition: background-color 0.15s ease;
+      }
+
+      .btn-download:hover {
+        background: #ecfdf5;
+      }
+
+      .btn-menu {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        background: rgba(255, 255, 255, 0.12);
+        color: #ffffff;
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        border-radius: 8px;
+        padding: 7px 10px;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      @media (min-width: 640px) {
+        .header-inner {
+          height: 64px;
+          padding: 0 20px;
+          gap: 16px;
+        }
+        .brand-link {
+          font-size: 22px;
+        }
+        .header-actions {
+          gap: 10px;
+        }
+        .btn-download {
+          font-size: 13px;
+          padding: 8px 14px;
+          gap: 6px;
+        }
+        .btn-menu {
+          font-size: 13px;
+          padding: 7px 12px;
+        }
+      }
+
+      .mobile-drawer {
+        display: none;
+        background-color: var(--brand-green-dark);
+        border-top: 1px solid rgba(255, 255, 255, 0.14);
+        padding: 12px 20px 16px;
+      }
+
+      .mobile-drawer.open {
+        display: block;
+      }
+
+      .mobile-drawer-links {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .mobile-drawer-links a {
+        display: block;
+        padding: 10px 12px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        color: rgba(255, 255, 255, 0.92);
+      }
+
+      .mobile-drawer-links a.active,
+      .mobile-drawer-links a:hover {
+        background: rgba(255, 255, 255, 0.15);
+        color: #ffffff;
+        font-weight: 600;
+      }
+
+      .policy-main {
+        flex: 1;
+        width: 100%;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 32px 16px 48px;
+      }
+
+      .policy-card {
+        background: var(--card-white);
+        border: 1px solid var(--border-subtle);
+        border-radius: 12px;
+        padding: 28px 22px;
+      }
+
+      .policy-title {
+        margin: 0;
+        font-size: 32px;
+        line-height: 1.2;
+        font-weight: 700;
+        color: var(--text-ink);
+      }
+
+      .policy-meta {
+        margin: 8px 0 0;
+        font-size: 12px;
+        color: var(--text-muted);
+      }
+
+      .toc-box {
+        margin-top: 24px;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        background: #fafafa;
+        padding: 16px 18px;
+        max-width: 440px;
+      }
+
+      .toc-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .toc-title {
+        font-size: 18px;
+        font-weight: 700;
+        color: var(--text-ink);
+      }
+
+      .toc-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        border: 1px solid #cbd5e1;
+        background: #ffffff;
+        color: #334155;
+        border-radius: 6px;
+        padding: 4px 9px;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      .toc-toggle:hover {
+        background: #f1f5f9;
+      }
+
+      .toc-list {
+        margin: 14px 0 0;
+        padding: 0;
+        list-style: none;
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+        font-size: 14.5px;
+      }
+
+      .toc-list.collapsed {
+        display: none;
+      }
+
+      .toc-list a {
+        color: #1e293b;
+        display: inline-flex;
+        gap: 6px;
+        line-height: 1.4;
+      }
+
+      .toc-list a:hover {
+        color: var(--brand-green);
+        text-decoration: underline;
+      }
+
+      .toc-num {
+        color: #64748b;
+        min-width: 18px;
+      }
+
+      .policy-body {
+        margin-top: 28px;
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+        font-size: 15.5px;
+        line-height: 1.72;
+        color: var(--text-body);
+      }
+
+      .policy-section {
+        scroll-margin-top: 80px;
+      }
+
+      .policy-section h2 {
+        margin: 0 0 8px;
+        font-size: 21px;
+        line-height: 1.3;
+        font-weight: 700;
+        color: var(--text-ink);
+      }
+
+      .policy-section p {
+        margin: 0;
+      }
+
+      .share-box {
+        margin-top: 14px;
+        padding: 16px;
+        background: #f7f7f7;
+        border: 1px solid var(--border-subtle);
+        border-radius: 10px;
+        font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .share-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+
+      .share-label {
+        font-size: 11.5px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: #64748b;
+      }
+
+      .share-url {
+        font-size: 12.5px;
+        color: var(--brand-green);
+        text-decoration: underline;
+        word-break: break-all;
+      }
+
+      .btn-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .btn-primary {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 9px 14px;
+        border-radius: 8px;
+        background: var(--brand-green);
+        color: #ffffff;
+        font-size: 12.5px;
+        font-weight: 600;
+        border: none;
+        cursor: pointer;
+        transition: background-color 0.15s ease;
+      }
+
+      .btn-primary:hover {
+        background: var(--brand-green-dark);
+      }
+
+      .btn-secondary {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 9px 14px;
+        border-radius: 8px;
+        background: #ffffff;
+        color: #0f172a;
+        border: 1px solid #cbd5e1;
+        font-size: 12.5px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background-color 0.15s ease;
+      }
+
+      .btn-secondary:hover {
+        background: #f1f5f9;
+      }
+
+      .site-footer {
+        background: var(--footer-bg);
+        color: #cbd5e1;
+        border-top: 1px solid #111111;
+        padding: 28px 20px;
+        margin-top: auto;
+      }
+
+      .footer-inner {
+        max-width: 1200px;
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+      }
+
+      .footer-top {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      .footer-brand {
+        font-size: 18px;
+        font-weight: 700;
+        color: #ffffff;
+      }
+
+      .footer-sub {
+        margin-top: 4px;
+        font-size: 12px;
+        color: #94a3b8;
+      }
+
+      .footer-links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+        font-size: 13px;
+      }
+
+      .footer-links a {
+        color: #cbd5e1;
+        transition: color 0.15s ease;
+      }
+
+      .footer-links a:hover {
+        color: #ffffff;
+      }
+
+      .footer-bottom {
+        padding-top: 18px;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+
+      .social-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .social-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 13px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        color: #f8fafc;
+        font-size: 12.5px;
+        font-weight: 600;
+        transition: transform 0.15s ease, background-color 0.15s ease;
+      }
+
+      .social-pill:hover {
+        transform: translateY(-1px);
+        background: rgba(255, 255, 255, 0.16);
+      }
+
+      .social-icon {
+        width: 18px;
+        height: 18px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+      }
+
+      .copy-toast {
+        position: fixed;
+        right: 20px;
+        bottom: 20px;
+        z-index: 60;
+        display: none;
+        align-items: center;
+        gap: 10px;
+        background: #047857;
+        color: #ffffff;
+        padding: 12px 16px;
+        border-radius: 12px;
+        box-shadow: 0 12px 28px rgba(0, 0, 0, 0.25);
+        font-size: 13px;
+        font-weight: 600;
+      }
+
+      .copy-toast.show {
+        display: flex;
+      }
+
+      @media (min-width: 768px) {
+        .desktop-nav {
+          display: flex;
+        }
+        .btn-menu {
+          display: none;
+        }
+        .policy-card {
+          padding: 40px 44px;
+        }
+        .policy-title {
+          font-size: 38px;
+        }
+        .footer-top,
+        .footer-bottom {
+          flex-direction: row;
+          align-items: center;
+          justify-content: space-between;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="header-inner">
+        <a href="../website.html" class="brand-link font-serif" id="header-brand">Shayari Lok</a>
+
+        <nav class="desktop-nav" aria-label="Website navigation">
+          <a href="../website.html">Home</a>
+          <a href="../website.html?page=shayari">Shayari</a>
+          <a href="../website.html?page=suvichar">Suvichar</a>
+          <a href="../website.html?page=updates">Updates</a>
+          <a href="./" class="active">Privacy Policy</a>
+        </nav>
+
+        <div class="header-actions">
+          <a
+            href="https://play.google.com/store/apps/details?id=com.cyberking.shayarilok"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="btn-download"
+            id="header-download-btn"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            <span>Download App</span>
+          </a>
+          <button type="button" class="btn-menu" id="mobile-menu-btn" aria-expanded="false" aria-label="Toggle navigation menu">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="3" y1="6" x2="21" y2="6" />
+              <line x1="3" y1="12" x2="21" y2="12" />
+              <line x1="3" y1="18" x2="21" y2="18" />
+            </svg>
+            <span>Menu</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="mobile-drawer" id="mobile-drawer">
+        <div class="mobile-drawer-links">
+          <a href="../website.html">Home</a>
+          <a href="../website.html?page=shayari">Shayari</a>
+          <a href="../website.html?page=suvichar">Suvichar</a>
+          <a href="../website.html?page=updates">Updates</a>
+          <a href="./" class="active">Privacy Policy</a>
+        </div>
+      </div>
+    </header>
+
+    <main class="policy-main">
+      <article class="policy-card">
+        <h1 class="policy-title font-serif">Privacy Policy</h1>
+        <p class="policy-meta font-mono" id="policy-meta-line">
+          Shayari Lok · com.cyberking.shayarilok · Published by CyberKing Studio
+        </p>
+
+        <div class="toc-box">
+          <div class="toc-header">
+            <span class="toc-title font-serif">Table of Contents</span>
+            <button type="button" class="toc-toggle" id="toc-toggle-btn" aria-expanded="true">
+              <span id="toc-toggle-label">Hide</span>
+            </button>
+          </div>
+          <ol class="toc-list font-serif" id="toc-list">
+            <li><a href="#who-we-are"><span class="toc-num">1.</span><span>Who we are</span></a></li>
+            <li><a href="#remote-config"><span class="toc-num">2.</span><span>Remote Shayari &amp; Real-Time Configuration</span></a></li>
+            <li><a href="#advertising"><span class="toc-num">3.</span><span>Advertising &amp; Third-Party AdMob Services</span></a></li>
+            <li><a href="#cookies"><span class="toc-num">4.</span><span>Local Storage &amp; Cookies</span></a></li>
+            <li><a href="#media-links"><span class="toc-num">5.</span><span>Images, Photo Shayari &amp; External Links</span></a></li>
+            <li><a href="#data-sharing"><span class="toc-num">6.</span><span>Who we share your data with</span></a></li>
+            <li><a href="#data-retention"><span class="toc-num">7.</span><span>How long we retain your data</span></a></li>
+            <li><a href="#your-rights"><span class="toc-num">8.</span><span>What rights you have over your data</span></a></li>
+            <li><a href="#contact-official"><span class="toc-num">9.</span><span>Contact, Official Website &amp; Policy URL</span></a></li>
+          </ol>
+        </div>
+
+        <div class="policy-body font-serif">
+          <section id="who-we-are" class="policy-section">
+            <h2>1. Who we are</h2>
+            <p>
+              <strong>CyberKing Studio</strong> publishes the <strong id="body-brand-name">Shayari Lok</strong>
+              Android application (<span class="font-mono" style="font-size:13.5px;">com.cyberking.shayarilok</span>) and
+              official web portal. Our platform delivers curated Hindi and Hinglish Shayari, Photo Shayari cards, and
+              daily Suvichar thoughts without requiring any mandatory user registration or account sign-up.
+            </p>
+          </section>
+
+          <section id="remote-config" class="policy-section">
+            <h2>2. Remote Shayari &amp; Real-Time Configuration</h2>
+            <p>
+              When you open Shayari Lok, the Android app and standalone website fetch the latest Shayari collection,
+              category chips, bell announcements, maintenance notices, and version updates from our read-only public
+              JSON feed. Standard network headers (such as temporary IP delivery by CDN servers) are processed strictly
+              to serve content fast and reliably.
+            </p>
+          </section>
+
+          <section id="advertising" class="policy-section">
+            <h2>3. Advertising &amp; Third-Party AdMob Services</h2>
+            <p id="admob-disclosure-text">
+              Advertising is currently enabled in this Android release using Google AdMob. AdMob may process your device
+              Advertising ID and anonymized diagnostic signals to deliver relevant banner or interstitial ads in
+              accordance with Google Privacy Policies.
+            </p>
+          </section>
+
+          <section id="cookies" class="policy-section">
+            <h2>4. Local Storage &amp; Cookies</h2>
+            <p>
+              We do not set invasive cross-site advertising tracking cookies on our public reader pages. Temporary
+              browser storage may retain your selected category filter or recently loaded Shayari items strictly to keep
+              browsing instant on slower mobile networks.
+            </p>
+          </section>
+
+          <section id="media-links" class="policy-section">
+            <h2>5. Images, Photo Shayari &amp; External Links</h2>
+            <p>
+              Shayari posts may include visual Photo Shayari cards hosted via CDN, and the website/app may provide
+              external links to our official WhatsApp, Facebook, Instagram, YouTube, or Google Play Store pages. External
+              third-party platforms operate under their own respective privacy policies.
+            </p>
+          </section>
+
+          <section id="data-sharing" class="policy-section">
+            <h2>6. Who we share your data with</h2>
+            <p>
+              We do not sell, rent, or trade personal reader information. Only non-personal ad-delivery or crash
+              diagnostic signals handled by Google Play Services / Google AdMob (when ads are enabled) are governed by
+              Google's privacy and security standards.
+            </p>
+          </section>
+
+          <section id="data-retention" class="policy-section">
+            <h2>7. How long we retain your data</h2>
+            <p>
+              Because Shayari Lok does not collect user registration profiles, private messages, comments, or contact
+              lists, we do not maintain personal reader accounts on our servers. Clipboard copies and category choices stay
+              entirely on your own device.
+            </p>
+          </section>
+
+          <section id="your-rights" class="policy-section">
+            <h2>8. What rights you have over your data</h2>
+            <p>
+              You can reset or limit your Android Advertising ID inside device privacy settings, clear local app/browser
+              storage anytime, or contact us directly regarding any content attribution, takedown, or privacy question.
+            </p>
+          </section>
+
+          <section id="contact-official" class="policy-section">
+            <h2>9. Contact, Official Website &amp; Policy URL</h2>
+            <p>
+              For privacy inquiries, copyright concerns, or support requests, email
+              <a href="mailto:support@shayarilok.in" class="font-mono" style="font-size:14px;text-decoration:underline;" id="support-email-link">support@shayarilok.in</a>.
+            </p>
+
+            <div class="share-box">
+              <div class="share-row">
+                <div>
+                  <div class="share-label">Official Shareable Policy URL</div>
+                  <div class="share-url font-mono" id="current-policy-url">https://shayarilok.in/privacy-policy/</div>
+                </div>
+                <div class="btn-group">
+                  <button type="button" class="btn-secondary" id="copy-policy-url-btn">
+                    <span>Copy Policy URL</span>
+                  </button>
+                  <a href="../website.html" class="btn-primary">
+                    <span>Open Official Website</span>
+                  </a>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="footer-inner">
+        <div class="footer-top">
+          <div>
+            <div class="footer-brand font-serif" id="footer-brand">Shayari Lok</div>
+            <div class="footer-sub">CyberKing Studio · com.cyberking.shayarilok · Standalone Public Release</div>
+          </div>
+          <div class="footer-links">
+            <a href="../website.html">Home</a>
+            <a href="../website.html?page=shayari">Shayari</a>
+            <a href="../website.html?page=suvichar">Suvichar</a>
+            <a href="../website.html?page=updates">Updates</a>
+            <a href="./">Privacy Policy</a>
+          </div>
+        </div>
+
+        <div class="footer-bottom">
+          <div class="footer-sub" style="margin:0;">Connect with Shayari Lok on official social channels:</div>
+          <div class="social-row" aria-label="Official Social Media Profiles">
+            <a href="https://whatsapp.com/channel/0029VaShayariLok" target="_blank" rel="noopener noreferrer" class="social-pill" id="social-whatsapp" aria-label="WhatsApp Channel">
+              <span class="social-icon">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="#25D366" aria-hidden="true">
+                  <path d="M12.03 2C6.51 2 2.02 6.49 2.02 12c0 1.77.46 3.49 1.34 5.01L2 22l5.12-1.34A9.96 9.96 0 0 0 12.03 22C17.55 22 22.04 17.51 22.04 12S17.55 2 12.03 2Zm5.82 14.18c-.25.7-1.44 1.34-2 1.42-.52.08-1.18.11-1.91-.12-.44-.14-1-.32-1.72-.63-3.03-1.31-5.01-4.37-5.16-4.57-.15-.2-1.23-1.64-1.23-3.13 0-1.49.78-2.22 1.06-2.52.28-.3.61-.38.81-.38h.58c.19 0 .44-.07.69.53.25.6.86 2.1.94 2.25.08.15.13.33.03.53-.1.2-.15.33-.3.5-.15.18-.32.4-.45.54-.15.15-.31.31-.13.62.18.31.79 1.31 1.7 2.12 1.17 1.04 2.15 1.36 2.46 1.52.3.15.48.13.66-.08.18-.2.76-.89.96-1.19.2-.3.41-.25.69-.15.28.1 1.78.84 2.08.99.3.15.51.23.58.35.08.13.08.73-.17 1.43Z" />
+                </svg>
+              </span>
+              <span>WhatsApp</span>
+            </a>
+
+            <a href="https://www.facebook.com/shayarilok.official" target="_blank" rel="noopener noreferrer" class="social-pill" id="social-facebook" aria-label="Facebook Page">
+              <span class="social-icon">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="#1877F2" aria-hidden="true">
+                  <path d="M22 12.06C22 6.5 17.52 2 12 2S2 6.5 2 12.06c0 5.02 3.66 9.18 8.44 9.94v-7.03H7.9v-2.91h2.54V9.85c0-2.52 1.49-3.91 3.78-3.91 1.1 0 2.24.2 2.24.2v2.47h-1.26c-1.24 0-1.63.77-1.63 1.57v1.88h2.78l-.44 2.91h-2.34V22C18.34 21.24 22 17.08 22 12.06Z" />
+                </svg>
+              </span>
+              <span>Facebook</span>
+            </a>
+
+            <a href="https://www.instagram.com/shayarilok_official" target="_blank" rel="noopener noreferrer" class="social-pill" id="social-instagram" aria-label="Instagram Profile">
+              <span class="social-icon">
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                  <defs>
+                    <linearGradient id="igGradDir" x1="0%" y1="100%" x2="100%" y2="0%">
+                      <stop offset="0%" stop-color="#feda75" />
+                      <stop offset="35%" stop-color="#fa7e1e" />
+                      <stop offset="65%" stop-color="#d62976" />
+                      <stop offset="100%" stop-color="#962fbf" />
+                    </linearGradient>
+                  </defs>
+                  <path fill="url(#igGradDir)" d="M7.8 2h8.4A5.8 5.8 0 0 1 22 7.8v8.4a5.8 5.8 0 0 1-5.8 5.8H7.8A5.8 5.8 0 0 1 2 16.2V7.8A5.8 5.8 0 0 1 7.8 2Zm0 2A3.8 3.8 0 0 0 4 7.8v8.4A3.8 3.8 0 0 0 7.8 20h8.4a3.8 3.8 0 0 0 3.8-3.8V7.8A3.8 3.8 0 0 0 16.2 4H7.8Zm9.65 1.5a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 0 1 0-2.5ZM12 7a5 5 0 1 1 0 10 5 5 0 0 1 0-10Zm0 2a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z" />
+                </svg>
+              </span>
+              <span>Instagram</span>
+            </a>
+
+            <a href="https://www.youtube.com/@shayarilok" target="_blank" rel="noopener noreferrer" class="social-pill" id="social-youtube" aria-label="YouTube Channel">
+              <span class="social-icon">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="#FF0000" aria-hidden="true">
+                  <path d="M23.5 6.19a3.02 3.02 0 0 0-2.12-2.14C19.5 3.54 12 3.54 12 3.54s-7.5 0-9.38.51A3.02 3.02 0 0 0 .5 6.19C0 8.08 0 12 0 12s0 3.92.5 5.81a3.02 3.02 0 0 0 2.12 2.14c1.88.51 9.38.51 9.38.51s7.5 0 9.38-.51a3.02 3.02 0 0 0 2.12-2.14c.5-1.89.5-5.81.5-5.81s0-3.92-.5-5.81ZM9.55 15.57V8.43L15.82 12l-6.27 3.57Z" />
+                </svg>
+              </span>
+              <span>YouTube</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </footer>
+
+    <div class="copy-toast" id="copy-toast" role="status" aria-live="polite">
+      <span>Copied Successfully!</span>
+    </div>
+
+    <script>
+      (function () {
+        var menuBtn = document.getElementById('mobile-menu-btn');
+        var mobileDrawer = document.getElementById('mobile-drawer');
+        if (menuBtn && mobileDrawer) {
+          menuBtn.addEventListener('click', function () {
+            var isOpen = mobileDrawer.classList.toggle('open');
+            menuBtn.setAttribute('aria-expanded', String(isOpen));
+          });
+        }
+
+        var tocBtn = document.getElementById('toc-toggle-btn');
+        var tocList = document.getElementById('toc-list');
+        var tocLabel = document.getElementById('toc-toggle-label');
+        if (tocBtn && tocList && tocLabel) {
+          tocBtn.addEventListener('click', function () {
+            var collapsed = tocList.classList.toggle('collapsed');
+            tocBtn.setAttribute('aria-expanded', String(!collapsed));
+            tocLabel.textContent = collapsed ? 'Show' : 'Hide';
+          });
+        }
+
+        var toastTimer = null;
+        function showCopiedToast() {
+          var toast = document.getElementById('copy-toast');
+          if (!toast) return;
+          toast.classList.add('show');
+          if (toastTimer) clearTimeout(toastTimer);
+          toastTimer = setTimeout(function () {
+            toast.classList.remove('show');
+          }, 2300);
+        }
+
+        function copyText(text) {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(showCopiedToast).catch(function () {
+              fallbackCopy(text);
+            });
+          } else {
+            fallbackCopy(text);
+          }
+        }
+
+        function fallbackCopy(text) {
+          var ta = document.createElement('textarea');
+          ta.value = text;
+          ta.setAttribute('readonly', '');
+          ta.style.position = 'fixed';
+          ta.style.top = '-9999px';
+          document.body.appendChild(ta);
+          ta.select();
+          try {
+            if (document.execCommand('copy')) showCopiedToast();
+          } finally {
+            ta.remove();
+          }
+        }
+
+        var currentUrlEl = document.getElementById('current-policy-url');
+        var shareUrl =
+          window.location.protocol.indexOf('http') === 0
+            ? window.location.href.split('#')[0]
+            : 'https://shayarilok.in/privacy-policy/';
+        if (currentUrlEl) currentUrlEl.textContent = shareUrl;
+
+        var copyPolicyBtn = document.getElementById('copy-policy-url-btn');
+        if (copyPolicyBtn) {
+          copyPolicyBtn.addEventListener('click', function () {
+            copyText(currentUrlEl ? currentUrlEl.textContent : shareUrl);
+          });
+        }
+
+        function applySocialLinks(links) {
+          if (!links || typeof links !== 'object') return;
+          var map = {
+            whatsapp: 'social-whatsapp',
+            facebook: 'social-facebook',
+            instagram: 'social-instagram',
+            youtube: 'social-youtube'
+          };
+          Object.keys(map).forEach(function (k) {
+            var el = document.getElementById(map[k]);
+            if (el && typeof links[k] === 'string' && links[k].trim()) {
+              el.href = links[k].trim();
+            }
+          });
+        }
+
+        try {
+          var savedSite = localStorage.getItem('shayari_lok_website_content_v1');
+          if (savedSite) {
+            var parsedSite = JSON.parse(savedSite);
+            if (parsedSite && parsedSite.socialLinks) applySocialLinks(parsedSite.socialLinks);
+          }
+        } catch (e) {}
+
+        fetch('../config.json', { cache: 'no-store' })
+          .then(function (r) {
+            return r.ok ? r.json() : null;
+          })
+          .then(function (cfg) {
+            if (!cfg || typeof cfg !== 'object') return;
+            var brand = typeof cfg.app_name === 'string' && cfg.app_name.trim() ? cfg.app_name.trim() : 'Shayari Lok';
+            var headerBrand = document.getElementById('header-brand');
+            var bodyBrand = document.getElementById('body-brand-name');
+            var footerBrand = document.getElementById('footer-brand');
+            var metaLine = document.getElementById('policy-meta-line');
+            if (headerBrand) headerBrand.textContent = brand;
+            if (bodyBrand) bodyBrand.textContent = brand;
+            if (footerBrand) footerBrand.textContent = brand;
+            if (metaLine) {
+              metaLine.textContent = brand + ' · com.cyberking.shayarilok · Published by CyberKing Studio';
+            }
+            var dlBtn = document.getElementById('header-download-btn');
+            if (dlBtn && typeof cfg.force_update_url === 'string' && cfg.force_update_url.trim()) {
+              dlBtn.href = cfg.force_update_url.trim();
+            }
+            var adText = document.getElementById('admob-disclosure-text');
+            if (adText && typeof cfg.ads_enabled === 'boolean') {
+              adText.textContent = cfg.ads_enabled
+                ? 'Advertising is currently enabled in this Android release using Google AdMob. AdMob may process your device Advertising ID and anonymized diagnostic signals to deliver relevant banner or interstitial ads in accordance with Google Privacy Policies.'
+                : 'Advertising is currently paused in the active public configuration. No banner or interstitial ad networks are serving ads while ads remain disabled.';
+            }
+          })
+          .catch(function () {});
+      })();
+    </script>
+  </body>
+</html>

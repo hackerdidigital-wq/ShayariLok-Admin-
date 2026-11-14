@@ -4,6 +4,7 @@ import type {
   ShayariLokConfig,
   SuvicharItem,
   WebsiteContentSettings,
+  WebsiteSocialLinks,
   WebsiteVisibilityControls,
 } from '../types/config';
 import { normalizeConfig } from './configHelpers';
@@ -43,6 +44,13 @@ export const DEFAULT_WEBSITE_CONTROLS: WebsiteVisibilityControls = {
   showSuvicharSection: true,
   showPhotoShayariSection: true,
   showMaintenanceNotice: true,
+};
+
+export const DEFAULT_WEBSITE_SOCIAL_LINKS: WebsiteSocialLinks = {
+  whatsapp: 'https://whatsapp.com/channel/0029VaShayariLok',
+  facebook: 'https://www.facebook.com/shayarilok.official',
+  instagram: 'https://www.instagram.com/shayarilok_official',
+  youtube: 'https://www.youtube.com/@shayarilok',
 };
 
 export const DEFAULT_SUVICHAR_LIST: SuvicharItem[] = [
@@ -108,6 +116,7 @@ export const DEFAULT_WEBSITE_CONTENT: WebsiteContentSettings = {
   heroSubheadline:
     'Shayari Lok का लाइव वेब पोर्टल — खूबसूरत फोटो शायरी कार्ड्स, आज के सुविचार, ताज़ा नोटिफिकेशन और एंड्रॉइड ऐप अपडेट एक ही जगह।',
   controls: { ...DEFAULT_WEBSITE_CONTROLS },
+  socialLinks: { ...DEFAULT_WEBSITE_SOCIAL_LINKS },
   suvichar_list: DEFAULT_SUVICHAR_LIST,
   photo_shayari_list: DEFAULT_PHOTO_SHAYARI_LIST,
 };
@@ -126,6 +135,7 @@ export function normalizeWebsiteContent(raw: unknown): WebsiteContentSettings {
     return {
       ...DEFAULT_WEBSITE_CONTENT,
       controls: { ...DEFAULT_WEBSITE_CONTROLS },
+      socialLinks: { ...DEFAULT_WEBSITE_SOCIAL_LINKS },
       suvichar_list: [...DEFAULT_SUVICHAR_LIST],
       photo_shayari_list: [...DEFAULT_PHOTO_SHAYARI_LIST],
     };
@@ -189,6 +199,30 @@ export function normalizeWebsiteContent(raw: unknown): WebsiteContentSettings {
         .filter((item) => item.text.length > 0)
     : [...DEFAULT_PHOTO_SHAYARI_LIST];
 
+  const rawSocial =
+    obj.socialLinks && typeof obj.socialLinks === 'object'
+      ? (obj.socialLinks as Record<string, unknown>)
+      : {};
+
+  const socialLinks: WebsiteSocialLinks = {
+    whatsapp:
+      typeof rawSocial.whatsapp === 'string' && rawSocial.whatsapp.trim()
+        ? rawSocial.whatsapp.trim().slice(0, 500)
+        : DEFAULT_WEBSITE_SOCIAL_LINKS.whatsapp,
+    facebook:
+      typeof rawSocial.facebook === 'string' && rawSocial.facebook.trim()
+        ? rawSocial.facebook.trim().slice(0, 500)
+        : DEFAULT_WEBSITE_SOCIAL_LINKS.facebook,
+    instagram:
+      typeof rawSocial.instagram === 'string' && rawSocial.instagram.trim()
+        ? rawSocial.instagram.trim().slice(0, 500)
+        : DEFAULT_WEBSITE_SOCIAL_LINKS.instagram,
+    youtube:
+      typeof rawSocial.youtube === 'string' && rawSocial.youtube.trim()
+        ? rawSocial.youtube.trim().slice(0, 500)
+        : DEFAULT_WEBSITE_SOCIAL_LINKS.youtube,
+  };
+
   return {
     heroHeadline:
       typeof obj.heroHeadline === 'string' && obj.heroHeadline.trim()
@@ -199,6 +233,7 @@ export function normalizeWebsiteContent(raw: unknown): WebsiteContentSettings {
         ? obj.heroSubheadline.trim().slice(0, 500)
         : DEFAULT_WEBSITE_CONTENT.heroSubheadline,
     controls,
+    socialLinks,
     suvichar_list,
     photo_shayari_list,
   };
