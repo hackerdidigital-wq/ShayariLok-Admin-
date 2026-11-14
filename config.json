@@ -13,13 +13,6 @@
   "announcement_message": "आज ही Love और Motivation कैटेगरी में नई चुनिंदा शायरियाँ पढ़ें और दोस्तों के साथ शेयर करें।",
   "notifications": [
     {
-      "id": 3,
-      "title": "9999",
-      "message": "GitHub पर सफलतापूर्वक पब्लिश हो गया (Direct GitHub API · 1861ms · SHA: 837f8b8)",
-      "badge": "Shayari Alert",
-      "time_label": "Today"
-    },
-    {
       "id": 1,
       "title": "आज की ख़ास शायरी",
       "message": "दिल को छू लेने वाली नई मोहब्बत शायरियाँ जोड़ दी गई हैं।",
