@@ -11,22 +11,7 @@
   "interstitial_ad_id": "ca-app-pub-3940256099942544/1033173712",
   "announcement_title": "नई हिंदी शायरी संग्रह लाइव है",
   "announcement_message": "आज ही Love और Motivation कैटेगरी में नई चुनिंदा शायरियाँ पढ़ें और दोस्तों के साथ शेयर करें।",
-  "notifications": [
-    {
-      "id": 1,
-      "title": "आज की ख़ास शायरी",
-      "message": "दिल को छू लेने वाली नई मोहब्बत शायरियाँ जोड़ दी गई हैं।",
-      "badge": "Shayari Alert",
-      "time_label": "Today"
-    },
-    {
-      "id": 2,
-      "title": "Shayari Lok v1.0 Live",
-      "message": "वन-टैप कॉपी और WhatsApp शेयर फ़ीचर के साथ नया अपडेट उपलब्ध है।",
-      "badge": "App Info",
-      "time_label": "Pinned"
-    }
-  ],
+  "notifications": [],
   "categories": [
     "All",
     "Love",
