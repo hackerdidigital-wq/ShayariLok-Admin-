@@ -38,5 +38,13 @@
     "All",
     "General"
   ],
-  "shayari_list": []
+  "shayari_list": [
+    {
+      "id": 1,
+      "category": "General",
+      "text": "The hm vo",
+      "author": "To",
+      "image_url": ""
+    }
+  ]
 }
