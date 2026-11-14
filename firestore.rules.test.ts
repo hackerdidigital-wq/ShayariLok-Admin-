@@ -30,6 +30,10 @@ test('firestore.rules covers every collection path declared in firebase-blueprin
   assert.ok(paths.includes('/users/{userId}/publishLogs/{logId}'));
   assert.ok(paths.includes('/users/{userId}/proxyProfiles/{profileId}'));
   assert.ok(paths.includes('/publicSites/{siteId}'));
+  assert.ok(paths.includes('/appUsers/{appUserId}'));
+  assert.ok(paths.includes('/socialEdges/{edgeId}'));
+  assert.ok(paths.includes('/chatRooms/{roomId}'));
+  assert.ok(paths.includes('/chatRooms/{roomId}/messages/{messageId}'));
 
   assert.match(rules, /match \/users\/\{userId\}/);
   assert.match(rules, /match \/settings\/\{settingId\}/);
@@ -37,6 +41,10 @@ test('firestore.rules covers every collection path declared in firebase-blueprin
   assert.match(rules, /match \/publishLogs\/\{logId\}/);
   assert.match(rules, /match \/proxyProfiles\/\{profileId\}/);
   assert.match(rules, /match \/publicSites\/\{siteId\}/);
+  assert.match(rules, /match \/appUsers\/\{appUserId\}/);
+  assert.match(rules, /match \/socialEdges\/\{edgeId\}/);
+  assert.match(rules, /match \/chatRooms\/\{roomId\}/);
+  assert.match(rules, /match \/messages\/\{messageId\}/);
 });
 
 test('firestore.rules locks publishLogs against updates and deletes', () => {
@@ -54,4 +62,15 @@ test('firestore.rules validates publicSites schema and blocks list scraping', ()
   assert.match(rules, /data\.suvichar_list\.size\(\)\s*<=\s*100/);
   assert.match(rules, /data\.photo_shayari_list\.size\(\)\s*<=\s*60/);
 });
+
+test('firestore.rules isolates appUsers PII, blocks spam users from chatting, and enforces 2-participant rooms', () => {
+  assert.match(rules, /isValidAppUser/);
+  assert.match(rules, /isValidSocialEdge/);
+  assert.match(rules, /isValidChatRoom/);
+  assert.match(rules, /isValidChatMessage/);
+  assert.match(rules, /data\.isBlocked == false/);
+  assert.match(rules, /data\.participantIds\.size\(\) == 2/);
+  assert.match(rules, /isVerifiedAdminEmail\(\)/);
+});
+
 

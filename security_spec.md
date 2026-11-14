@@ -9,6 +9,10 @@
 6. No user may list `/users` globally or read another user's subcollections.
 7. Document IDs `{userId}`, `{settingId}`, `{draftId}`, `{logId}`, `{profileId}`, `{siteId}` must pass `isValidId()` (`^[a-zA-Z0-9_\\-]+$`, length <= 128).
 8. Public website mirrors at `/publicSites/{siteId}` allow targeted `get` by `siteId` (never `list`, preventing scraping), omit internal AdMob unit IDs, and allow writes/deletes strictly when verified owner `request.auth.uid == siteId` with `ownerId == request.auth.uid`, exact key allowlisting, bounded arrays (`suvichar_list <= 100`, `photo_shayari_list <= 60`), and `updatedAt == request.time`.
+9. Registered app user profiles at `/appUsers/{appUserId}` contain user location/address details and moderation flags (`isBlocked`, `blockReason`). Only verified admins (`isAdmin()`) may list all users or mutate moderation fields (`isBlocked`, `blockReason`); app users may only read/update their own non-moderation profile fields.
+10. Social graph edges at `/socialEdges/{edgeId}` (`follow` / `like`) verify both `actorId` and `targetId` exist in `/appUsers`, forbid self-edges (`actorId != targetId`), and are immutable (`allow update: if false`).
+11. Real-time chat rooms at `/chatRooms/{roomId}` strictly enforce a 2-participant array (`participantIds.size() == 2`) and isolate reads/queries (`list` checks `request.auth.uid in resource.data.participantIds` or `isVerifiedAdminEmail()`).
+12. Messages at `/chatRooms/{roomId}/messages/{messageId}` require an existing parent room, bind `roomId`, reject messages from blocked users (`isBlocked == true`), and reserve moderation edits (`isFlagged`) and message deletion exclusively for verified admins.
 
 
 ## 2. The "Dirty Dozen" Payloads (Adversarial Tests)
@@ -24,3 +28,8 @@
 10. **Array flooding / Denial of Wallet**: Sending `categories` with 51+ entries or `categories` empty (`size() == 0`) -> `PERMISSION_DENIED`.
 11. **Orphaned subcollection write**: Writing `/users/uid1/drafts/default` when `/users/uid1` parent profile does not exist -> `PERMISSION_DENIED`.
 12. **Audit log tampering**: Attempting to `update` or `delete` `/users/uid1/publishLogs/log1` -> `PERMISSION_DENIED`.
+13. **Blocked user bypass**: A user with `isBlocked: true` in `/appUsers/{uid}` attempting to create a message in `/chatRooms/{roomId}/messages/{msgId}` -> `PERMISSION_DENIED`.
+14. **Self-unblock escalation**: User updating their own `/appUsers/{uid}` document to set `isBlocked: false` or inflate `followersCount` -> `PERMISSION_DENIED`.
+15. **Non-admin chat eavesdropping**: User `uid3` (not in `participantIds`) listing `/chatRooms/{roomId}/messages` -> `PERMISSION_DENIED`.
+16. **Orphaned / forged social edge**: User `uid1` creating `/socialEdges/{edgeId}` with `actorId: "uid2"` or self-follow (`actorId == targetId`) -> `PERMISSION_DENIED`.
+

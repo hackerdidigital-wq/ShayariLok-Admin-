@@ -32,6 +32,7 @@ const ADMIN_SECTIONS: ReadonlyArray<Exclude<AdminSection, 'settings'>> = [
   'notifications',
   'monetization',
   'android-api',
+  'social-monitor',
   'proxy',
   'sync',
   'website',
@@ -143,16 +144,26 @@ export function parseStandaloneQuery(search: string, hash: string): {
   return { page, siteId, repoOverride };
 }
 
+export type StandaloneHtmlFile =
+  | 'website.html'
+  | 'privacy.html'
+  | 'terms.html'
+  | 'about.html'
+  | 'contact.html';
+
 export function resolveDirectoryBase(origin: string, pathname: string): string {
   const cleanOrigin = origin.replace(/\/+$/, '');
   const rawPath = pathname || '/';
-  const dirPath = rawPath.replace(/(?:index|website|privacy)\.html$/i, '');
+  const dirPath = rawPath.replace(
+    /(?:index|website|privacy|terms|about|contact)\.html$/i,
+    ''
+  );
   const normalizedDir = dirPath.endsWith('/') ? dirPath : `${dirPath}/`;
   return `${cleanOrigin}${normalizedDir}`;
 }
 
 export function buildStandaloneEntryUrl(
-  entryHtml: 'website.html' | 'privacy.html',
+  entryHtml: StandaloneHtmlFile,
   origin: string,
   pathname: string,
   options: StandaloneShareOptions = {}

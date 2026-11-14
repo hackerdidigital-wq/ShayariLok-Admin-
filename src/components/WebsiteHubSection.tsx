@@ -7,7 +7,11 @@ import {
   CloudUpload,
   Copy,
   ExternalLink,
+  FileText,
   Globe,
+  Info,
+  Lock,
+  Mail,
   ShieldCheck,
   Sparkles,
 } from 'lucide-react';
@@ -16,14 +20,14 @@ import type {
   ShayariLokConfig,
   WebsiteContentSettings,
 } from '../types/config';
+import { copyTextWithFeedback } from '../utils/clipboardToast';
 import { isGitHubConfigured } from '../utils/githubApi';
 import {
   buildStandaloneEntryUrl,
+  resolveDirectoryBase,
   type PublicSitePageId,
+  type StandaloneHtmlFile,
 } from '../utils/siteRoutes';
-
-import { Lock } from 'lucide-react';
-import { copyTextWithFeedback } from '../utils/clipboardToast';
 
 interface WebsiteHubSectionProps {
   config: ShayariLokConfig;
@@ -36,52 +40,98 @@ interface WebsiteHubSectionProps {
   onOpenPinSettings?: () => void;
 }
 
-const LIVE_SITES: Array<{
-  page: PublicSitePageId;
-  entryHtml: 'website.html' | 'privacy.html';
+interface StandalonePortalCard {
+  key: string;
+  page?: PublicSitePageId;
+  entryHtml: StandaloneHtmlFile;
+  cleanRoute?: string;
+  customDomainExample: string;
   title: string;
   subtitle: string;
   icon: React.ComponentType<{ className?: string }>;
-}> = [
+}
+
+const LIVE_SITES: StandalonePortalCard[] = [
   {
+    key: 'home',
     page: 'home',
     entryHtml: 'website.html',
+    customDomainExample: 'https://shayarilok.in/website.html',
     title: 'Official App Website (Standalone URL)',
     subtitle:
-      'अलग URL (website.html) पर खुलने वाली लाइव वेबसाइट — Photo Shayari कार्ड्स, आज के सुविचार, नोटिफिकेशन बेल और डाउनलोड बटन के साथ (बिना Admin Panel लिंक के)।',
+      'पूरी तरह स्वतंत्र वेबसाइट (website.html) — Photo Shayari कार्ड्स, आज के सुविचार, नोटिफिकेशन बेल व WhatsApp/Facebook/Instagram/YouTube फुटर आइकॉन के साथ (बिना Admin/Login/GitHub लिंक के)।',
     icon: Globe,
   },
   {
+    key: 'shayari',
     page: 'shayari',
     entryHtml: 'website.html',
+    customDomainExample: 'https://shayarilok.in/website.html?page=shayari',
     title: 'Live Shayari & Search Portal',
     subtitle:
       'वेब विज़िटर्स के लिए अलग लाइव शायरी लाइब्रेरी: कैटेगरी फ़िल्टर, हिंदी/Hinglish सर्च और 1-क्लिक कॉपी।',
     icon: BookOpenText,
   },
   {
+    key: 'suvichar',
     page: 'suvichar',
     entryHtml: 'website.html',
+    customDomainExample: 'https://shayarilok.in/website.html?page=suvichar',
     title: 'Daily Suvichar (सुविचार) Portal',
     subtitle:
       'प्रेरणादायक हिंदी सुविचार का समर्पित लाइव पेज — आपके एडमिन पैनल से तुरंत अपडेट होता है।',
     icon: Sparkles,
   },
   {
+    key: 'updates',
     page: 'updates',
     entryHtml: 'website.html',
+    customDomainExample: 'https://shayarilok.in/website.html?page=updates',
     title: 'Updates & Notification Feed',
     subtitle:
       'नोटिफिकेशन पैनल से कंट्रोल होने वाले लाइव बेल अलर्ट, पिन अनाउंसमेंट और रिलीज़ वर्ज़न की वेबसाइट।',
     icon: Bell,
   },
   {
+    key: 'privacy',
     page: 'privacy',
     entryHtml: 'privacy.html',
-    title: 'Standalone Privacy Policy Website',
+    cleanRoute: 'privacy-policy/',
+    customDomainExample: 'https://shayarilok.in/privacy-policy/',
+    title: 'Privacy Policy (Standalone)',
     subtitle:
-      'बिल्कुल अलग URL (privacy.html) पर होस्ट किया गया Privacy Policy पेज — सीधे Play Console और ऐप में लिंक करने के लिए।',
+      'शुद्ध HTML/CSS/JS से बना अलग Privacy Policy पेज (/privacy-policy/ व privacy.html) — सीधे Play Console और ऐप में लिंक करने के लिए।',
     icon: ShieldCheck,
+  },
+  {
+    key: 'terms',
+    entryHtml: 'terms.html',
+    cleanRoute: 'terms/',
+    customDomainExample: 'https://shayarilok.in/terms/',
+    title: 'Terms & Conditions (Standalone)',
+    subtitle:
+      'कस्टम डोमेन तैयार Terms & Conditions पेज (/terms/ व terms.html) — बिना किसी एडमिन, लॉगिन या डैशबोर्ड लिंक के।',
+    icon: FileText,
+  },
+  {
+    key: 'about',
+    entryHtml: 'about.html',
+    cleanRoute: 'about/',
+    customDomainExample: 'https://shayarilok.in/about/',
+    title: 'About Shayari Lok (Standalone)',
+    subtitle:
+      'Shayari Lok और CyberKing Studio के बारे में समर्पित पब्लिक पेज (/about/ व about.html) — सोशल मीडिया प्रोफाइल्स के साथ।',
+    icon: Info,
+  },
+  {
+    key: 'contact',
+    entryHtml: 'contact.html',
+    cleanRoute: 'contact/',
+    customDomainExample: 'https://shayarilok.in/contact/',
+    title: 'Contact & Support (Standalone)',
+    subtitle:
+      'यूज़र सहायता, कॉपीराइट/DMCA अनुरोध व ईमेल संपर्क के लिए स्वतंत्र पेज (/contact/ व contact.html)।',
+    icon: Mail,
   },
 ];
 
@@ -95,7 +145,7 @@ export const WebsiteHubSection: React.FC<WebsiteHubSectionProps> = ({
   onOpenPublicPage,
   onOpenPinSettings,
 }) => {
-  const [copiedPage, setCopiedPage] = useState<PublicSitePageId | null>(null);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [includeGitHubQuery, setIncludeGitHubQuery] = useState(true);
   const [includeCloudSiteId, setIncludeCloudSiteId] = useState(true);
 
@@ -105,12 +155,12 @@ export const WebsiteHubSection: React.FC<WebsiteHubSectionProps> = ({
   const pathname =
     typeof window !== 'undefined' ? window.location.pathname : '/';
 
-  const getShareUrl = (
-    page: PublicSitePageId,
-    entryHtml: 'website.html' | 'privacy.html'
-  ) =>
-    buildStandaloneEntryUrl(entryHtml, origin, pathname, {
-      page,
+  const getShareUrl = (site: StandalonePortalCard) => {
+    if (site.cleanRoute) {
+      return `${resolveDirectoryBase(origin, pathname)}${site.cleanRoute}`;
+    }
+    return buildStandaloneEntryUrl(site.entryHtml, origin, pathname, {
+      page: site.page,
       siteId: user && includeCloudSiteId ? user.uid : null,
       repoOverride:
         githubReady && includeGitHubQuery
@@ -122,35 +172,43 @@ export const WebsiteHubSection: React.FC<WebsiteHubSectionProps> = ({
             }
           : null,
     });
+  };
 
-  const handleCopy = async (
-    page: PublicSitePageId,
-    entryHtml: 'website.html' | 'privacy.html'
-  ) => {
+  const handleCopy = async (site: StandalonePortalCard) => {
+    const labelMap: Record<string, string> = {
+      privacy: 'Privacy Policy URL',
+      terms: 'Terms & Conditions URL',
+      about: 'About Page URL',
+      contact: 'Contact Page URL',
+    };
     const ok = await copyTextWithFeedback(
-      getShareUrl(page, entryHtml),
-      entryHtml === 'privacy.html' ? 'Privacy Policy URL' : 'Website URL'
+      getShareUrl(site),
+      labelMap[site.key] ?? 'Website URL'
     );
     if (ok) {
-      setCopiedPage(page);
+      setCopiedKey(site.key);
       window.setTimeout(() => {
-        setCopiedPage((prev) => (prev === page ? null : prev));
+        setCopiedKey((prev) => (prev === site.key ? null : prev));
       }, 2000);
     }
   };
 
-  const mainSiteUrl = getShareUrl('home', 'website.html');
-  const mainPrivacyUrl = getShareUrl('privacy', 'privacy.html');
+  const mainSiteUrl = getShareUrl(LIVE_SITES[0]);
+  const mainPrivacyUrl = getShareUrl(LIVE_SITES[4]);
 
   return (
     <div className="space-y-6">
       <div className="bg-white border border-slate-200 rounded-xl p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
           <h2 className="font-display text-lg font-bold text-slate-900">
-            Standalone Live Websites &amp; Privacy Policy URLs
+            Standalone Live Websites &amp; Custom Domain Public Pages
           </h2>
           <p className="mt-1 text-sm text-slate-600">
-            नीचे दिए गए सभी लिंक अलग पब्लिक URL (<code className="font-mono">website.html</code> व <code className="font-mono">privacy.html</code>) पर खुलते हैं—इन पर विज़िटर्स को आपका Admin Panel नहीं दिखता और एडमिन से हर बदलाव रीयल-टाइम सिंक होता है।
+            सभी पब्लिक पेज (<code className="font-mono">website.html</code>,{' '}
+            <code className="font-mono">/privacy-policy/</code>,{' '}
+            <code className="font-mono">/terms/</code>,{' '}
+            <code className="font-mono">/about/</code> व{' '}
+            <code className="font-mono">/contact/</code>) 100% शुद्ध HTML/CSS/JS हैं—इनमें कहीं भी Admin, Dashboard, Login या GitHub का नाम/लिंक नहीं है।
           </p>
         </div>
 
@@ -226,12 +284,12 @@ export const WebsiteHubSection: React.FC<WebsiteHubSectionProps> = ({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         {LIVE_SITES.map((site) => {
           const Icon = site.icon;
-          const shareUrl = getShareUrl(site.page, site.entryHtml);
-          const isCopied = copiedPage === site.page;
+          const shareUrl = getShareUrl(site);
+          const isCopied = copiedKey === site.key;
 
           return (
             <div
-              key={site.page}
+              key={site.key}
               className="bg-white border border-slate-200 rounded-xl p-6 flex flex-col justify-between gap-5"
             >
               <div className="space-y-3">
@@ -243,7 +301,7 @@ export const WebsiteHubSection: React.FC<WebsiteHubSectionProps> = ({
                     </h3>
                   </div>
                   <span className="font-mono text-xs text-emerald-700 font-semibold">
-                    {site.entryHtml}
+                    {site.cleanRoute ? `/${site.cleanRoute}` : site.entryHtml}
                   </span>
                 </div>
 
@@ -251,8 +309,13 @@ export const WebsiteHubSection: React.FC<WebsiteHubSectionProps> = ({
                   {site.subtitle}
                 </p>
 
-                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg font-mono text-[11px] text-slate-600 truncate">
-                  {shareUrl}
+                <div className="space-y-1">
+                  <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg font-mono text-[11px] text-slate-600 truncate">
+                    {shareUrl}
+                  </div>
+                  <div className="font-mono text-[11px] text-slate-400 truncate">
+                    Custom Domain: {site.customDomainExample}
+                  </div>
                 </div>
               </div>
 
@@ -270,7 +333,7 @@ export const WebsiteHubSection: React.FC<WebsiteHubSectionProps> = ({
                 <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => void handleCopy(site.page, site.entryHtml)}
+                    onClick={() => void handleCopy(site)}
                     className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200"
                   >
                     {isCopied ? (
@@ -286,13 +349,15 @@ export const WebsiteHubSection: React.FC<WebsiteHubSectionProps> = ({
                     )}
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={() => onOpenPublicPage(site.page)}
-                    className="px-3 py-2 text-xs font-medium text-indigo-700 bg-indigo-50 rounded-lg hover:bg-indigo-100"
-                  >
-                    Preview Here
-                  </button>
+                  {site.page && (
+                    <button
+                      type="button"
+                      onClick={() => onOpenPublicPage(site.page!)}
+                      className="px-3 py-2 text-xs font-medium text-indigo-700 bg-indigo-50 rounded-lg hover:bg-indigo-100"
+                    >
+                      Preview Here
+                    </button>
+                  )}
 
                   <a
                     href={shareUrl}
@@ -316,11 +381,12 @@ export const WebsiteHubSection: React.FC<WebsiteHubSectionProps> = ({
           <ShieldCheck className="w-5 h-5 text-emerald-700 shrink-0 mt-0.5" />
           <div className="space-y-1">
             <h3 className="font-display text-sm font-bold text-slate-900">
-              100% Isolated Public Websites — Admin Panel Completely Hidden
+              100% Isolated Public Websites — Zero Admin, Login or Dashboard References
             </h3>
             <p className="text-xs text-slate-700 leading-relaxed">
-              यूज़र को शेयर किए जाने वाले <code className="font-mono">website.html</code> और{' '}
-              <code className="font-mono">privacy.html</code> अलग एंट्री बंडल पर चलते हैं। उनमें एडमिन पैनल का कोई लिंक, रूट या कोड शामिल नहीं होता—इसलिए कोई भी विज़िटर आपके एडमिन तक नहीं पहुँच सकता।
+              यूज़र को शेयर किए जाने वाले <code className="font-mono">website.html</code>,{' '}
+              <code className="font-mono">/privacy-policy/</code>, <code className="font-mono">/terms/</code>,{' '}
+              <code className="font-mono">/about/</code> व <code className="font-mono">/contact/</code> अलग शुद्ध HTML/CSS/JS फाइलें हैं। इनमें एडमिन पैनल का कोई नाम, बटन या रूट शामिल नहीं होता।
             </p>
           </div>
         </div>

@@ -19,6 +19,7 @@ import { ProxySection } from './components/ProxySection';
 import { PublicWebsiteView } from './components/PublicWebsiteView';
 import { ShayariManagerSection } from './components/ShayariManagerSection';
 import { Sidebar } from './components/Sidebar';
+import { SocialMonitorSection } from './components/SocialMonitorSection';
 import { TopBar } from './components/TopBar';
 import { WebsiteHubSection } from './components/WebsiteHubSection';
 import { auth, firebaseInitError, googleProvider } from './firebase';
@@ -1021,6 +1022,13 @@ export default function App() {
               user={user}
               liveSyncing={liveSyncing}
               onSyncLiveWebsiteNow={handleSyncLiveWebsiteNow}
+            />
+          )}
+
+          {activeSection === 'social-monitor' && (
+            <SocialMonitorSection
+              user={user}
+              onSignIn={() => void handleGoogleSignIn()}
             />
           )}
 

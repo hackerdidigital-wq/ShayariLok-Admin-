@@ -471,6 +471,257 @@
         "photo_shayari_list",
         "updatedAt"
       ]
+    },
+    "AppUser": {
+      "title": "AppUser",
+      "description": "Registered Android app user profile visible in Social & Live Chat Monitor.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Unique app user ID."
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "description": "Public user display name."
+        },
+        "username": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 40,
+          "pattern": "^[a-zA-Z0-9_.]+$",
+          "description": "Unique user handle without @."
+        },
+        "city": {
+          "type": "string",
+          "maxLength": 80,
+          "description": "User city or town."
+        },
+        "address": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "User location or full address detail."
+        },
+        "bio": {
+          "type": "string",
+          "maxLength": 300,
+          "description": "Short shayari bio."
+        },
+        "isOnline": {
+          "type": "boolean",
+          "description": "Current real-time online presence indicator."
+        },
+        "isBlocked": {
+          "type": "boolean",
+          "description": "Whether admin has blocked this spam or abusive user."
+        },
+        "blockReason": {
+          "type": "string",
+          "maxLength": 240,
+          "description": "Moderation reason when blocked."
+        },
+        "followersCount": {
+          "type": "integer",
+          "description": "Total followers count."
+        },
+        "followingCount": {
+          "type": "integer",
+          "description": "Total following count."
+        },
+        "likesReceivedCount": {
+          "type": "integer",
+          "description": "Total profile/shayari likes received."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Account registration timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last profile update timestamp."
+        }
+      },
+      "required": [
+        "uid",
+        "displayName",
+        "username",
+        "city",
+        "address",
+        "bio",
+        "isOnline",
+        "isBlocked",
+        "blockReason",
+        "followersCount",
+        "followingCount",
+        "likesReceivedCount",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "SocialEdge": {
+      "title": "SocialEdge",
+      "description": "Follow or Like interaction connecting an actor user to a target user.",
+      "type": "object",
+      "properties": {
+        "actorId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "UID of the user who performed the follow or like."
+        },
+        "targetId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "UID of the user who received the follow or like."
+        },
+        "actorName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "description": "Display name of actor."
+        },
+        "targetName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "description": "Display name of target."
+        },
+        "type": {
+          "type": "string",
+          "enum": ["follow", "like"],
+          "description": "Social interaction type."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Interaction timestamp."
+        }
+      },
+      "required": [
+        "actorId",
+        "targetId",
+        "actorName",
+        "targetName",
+        "type",
+        "createdAt"
+      ]
+    },
+    "ChatRoom": {
+      "title": "ChatRoom",
+      "description": "1-on-1 real-time user chat conversation metadata monitored by admin.",
+      "type": "object",
+      "properties": {
+        "participantIds": {
+          "type": "array",
+          "description": "Exact 2-element list of participant app user IDs."
+        },
+        "participantNames": {
+          "type": "array",
+          "description": "Exact 2-element list of participant display names."
+        },
+        "lastMessage": {
+          "type": "string",
+          "maxLength": 1000,
+          "description": "Most recent chat message preview."
+        },
+        "lastSenderId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "UID of sender of the last message."
+        },
+        "messageCount": {
+          "type": "integer",
+          "description": "Total messages exchanged in this room."
+        },
+        "flaggedSpam": {
+          "type": "boolean",
+          "description": "Whether room has been flagged for spam review."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last message timestamp."
+        }
+      },
+      "required": [
+        "participantIds",
+        "participantNames",
+        "lastMessage",
+        "lastSenderId",
+        "messageCount",
+        "flaggedSpam",
+        "updatedAt"
+      ]
+    },
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "Individual real-time message inside a 1-on-1 user chat room.",
+      "type": "object",
+      "properties": {
+        "roomId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Parent chatRoom document ID."
+        },
+        "senderId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Sender user UID."
+        },
+        "senderName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "description": "Sender display name."
+        },
+        "receiverId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Recipient user UID."
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000,
+          "description": "Message text content."
+        },
+        "isFlagged": {
+          "type": "boolean",
+          "description": "Moderation spam flag on individual message."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Message creation server timestamp."
+        }
+      },
+      "required": [
+        "roomId",
+        "senderId",
+        "senderName",
+        "receiverId",
+        "text",
+        "isFlagged",
+        "createdAt"
+      ]
     }
   },
   "firestore": {
@@ -497,6 +748,22 @@
     "/publicSites/{siteId}": {
       "schema": { "$ref": "#/entities/PublicSite" },
       "description": "Publicly readable real-time Shayari Lok website state keyed by owner UID."
+    },
+    "/appUsers/{appUserId}": {
+      "schema": { "$ref": "#/entities/AppUser" },
+      "description": "Registered Android app user profiles, locations, follower/like counts, and block flags."
+    },
+    "/socialEdges/{edgeId}": {
+      "schema": { "$ref": "#/entities/SocialEdge" },
+      "description": "Real-time follow and like edges between Android app users."
+    },
+    "/chatRooms/{roomId}": {
+      "schema": { "$ref": "#/entities/ChatRoom" },
+      "description": "1-on-1 chat threads between Android app users."
+    },
+    "/chatRooms/{roomId}/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/ChatMessage" },
+      "description": "Real-time messages inside a chat room monitored by admin."
     }
   }
 }

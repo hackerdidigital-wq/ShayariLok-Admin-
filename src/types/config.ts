@@ -57,6 +57,7 @@ export type AdminSection =
   | 'notifications'
   | 'monetization'
   | 'android-api'
+  | 'social-monitor'
   | 'proxy'
   | 'sync'
   | 'website'
@@ -165,5 +166,55 @@ export interface WebsiteContentSettings {
   suvichar_list: SuvicharItem[];
   photo_shayari_list: PhotoShayariCard[];
 }
+
+export interface AppUserProfile {
+  uid: string;
+  displayName: string;
+  username: string;
+  city: string;
+  address: string;
+  bio: string;
+  isOnline: boolean;
+  isBlocked: boolean;
+  blockReason: string;
+  followersCount: number;
+  followingCount: number;
+  likesReceivedCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SocialEdgeItem {
+  id: string;
+  actorId: string;
+  targetId: string;
+  actorName: string;
+  targetName: string;
+  type: 'follow' | 'like';
+  createdAt: string;
+}
+
+export interface ChatRoomItem {
+  id: string;
+  participantIds: [string, string];
+  participantNames: [string, string];
+  lastMessage: string;
+  lastSenderId: string;
+  messageCount: number;
+  flaggedSpam: boolean;
+  updatedAt: string;
+}
+
+export interface ChatMessageItem {
+  id: string;
+  roomId: string;
+  senderId: string;
+  senderName: string;
+  receiverId: string;
+  text: string;
+  isFlagged: boolean;
+  createdAt: string;
+}
+
 
 

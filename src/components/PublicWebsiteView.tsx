@@ -240,17 +240,8 @@ export const PublicWebsiteView: React.FC<PublicWebsiteViewProps> = ({
             })}
           </nav>
 
-          {/* Zone 3: Live Notification Bell + Download CTA + Preview Back + Mobile Menu */}
+          {/* Zone 3: Live Notification Bell + Download CTA + Mobile Menu (Zero Admin Button) */}
           <div className="flex items-center gap-2 shrink-0">
-            {onBackToAdmin && (
-              <button
-                type="button"
-                onClick={onBackToAdmin}
-                className="hidden sm:inline-flex items-center px-3 py-2 text-xs font-medium text-white bg-white/15 border border-white/25 rounded-lg hover:bg-white/25 transition-colors whitespace-nowrap shrink-0"
-              >
-                ← Admin
-              </button>
-            )}
             {controls.showNotificationBell && (
               <div className="relative">
                 <button
@@ -423,18 +414,6 @@ export const PublicWebsiteView: React.FC<PublicWebsiteViewProps> = ({
               {item.label}
             </button>
           ))}
-          {onBackToAdmin && (
-            <button
-              type="button"
-              onClick={() => {
-                setMobileNavOpen(false);
-                onBackToAdmin();
-              }}
-              className="w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium text-indigo-700 bg-indigo-50/60"
-            >
-              ← Back to Admin Panel
-            </button>
-          )}
         </div>
       )}
 
@@ -1611,8 +1590,36 @@ export const PublicWebsiteView: React.FC<PublicWebsiteViewProps> = ({
               })()}
             </div>
           </div>
+
+          <div className="pt-3 border-t border-white/10 flex flex-wrap items-center justify-between gap-3 text-[11px] text-slate-400">
+            <span>© {new Date().getFullYear()} {brandName} · {orgName}</span>
+            <div className="flex flex-wrap items-center gap-4">
+              <a href="./about.html" className="hover:text-white transition-colors">
+                About Us
+              </a>
+              <a href="./contact.html" className="hover:text-white transition-colors">
+                Contact
+              </a>
+              <a href="./terms.html" className="hover:text-white transition-colors">
+                Terms &amp; Conditions
+              </a>
+              <a href="./privacy-policy/" className="hover:text-white transition-colors">
+                Privacy Policy
+              </a>
+            </div>
+          </div>
         </div>
       </footer>
+
+      {onBackToAdmin && (
+        <button
+          type="button"
+          onClick={onBackToAdmin}
+          className="fixed bottom-4 left-4 z-50 px-3 py-1.5 rounded-full bg-slate-900/85 text-white text-xs font-medium border border-white/15 shadow-lg hover:bg-slate-900 transition-colors"
+        >
+          ← Exit Preview
+        </button>
+      )}
     </div>
   );
 };

@@ -35,6 +35,7 @@ const SECTION_TITLES: Record<AdminSection, string> = {
   dashboard: 'Dashboard & App Control',
   shayari: 'Shayari Manager',
   notifications: 'Notifications & Announcements',
+  'social-monitor': 'Users & Live Chats (चैटिंग और यूजर्स कंट्रोल)',
   monetization: 'Monetization & Social Links',
   website: 'Live Public Websites',
   'android-api': 'Android App API & Code',

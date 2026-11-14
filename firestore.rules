@@ -31,6 +31,17 @@ service cloud.firestore {
       return isVerified() && request.auth.uid == userId;
     }
 
+    function isVerifiedAdminEmail() {
+      return isVerified() && request.auth.token.email == 'bamniyad749@gmail.com';
+    }
+
+    function isAdmin() {
+      return isVerified() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+        || request.auth.token.email == 'bamniyad749@gmail.com'
+      );
+    }
+
     function isValidAdminUser(data) {
       return data.keys().hasAll(['uid', 'email', 'displayName', 'createdAt', 'updatedAt'])
         && data.keys().hasOnly(['uid', 'email', 'displayName', 'createdAt', 'updatedAt'])
@@ -195,6 +206,84 @@ service cloud.firestore {
         && data.updatedAt is timestamp;
     }
 
+    function isValidAppUser(data) {
+      return data.keys().hasAll([
+          'uid', 'displayName', 'username', 'city', 'address', 'bio',
+          'isOnline', 'isBlocked', 'blockReason', 'followersCount',
+          'followingCount', 'likesReceivedCount', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'displayName', 'username', 'city', 'address', 'bio',
+          'isOnline', 'isBlocked', 'blockReason', 'followersCount',
+          'followingCount', 'likesReceivedCount', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.uid)
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 100
+        && data.username is string && data.username.size() >= 2 && data.username.size() <= 40 && data.username.matches('^[a-zA-Z0-9_.]+$')
+        && data.city is string && data.city.size() <= 80
+        && data.address is string && data.address.size() <= 200
+        && data.bio is string && data.bio.size() <= 300
+        && data.isOnline is bool
+        && data.isBlocked is bool
+        && data.blockReason is string && data.blockReason.size() <= 240
+        && data.followersCount is int && data.followersCount >= 0 && data.followersCount <= 10000000
+        && data.followingCount is int && data.followingCount >= 0 && data.followingCount <= 10000000
+        && data.likesReceivedCount is int && data.likesReceivedCount >= 0 && data.likesReceivedCount <= 100000000
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidSocialEdge(data) {
+      return data.keys().hasAll(['actorId', 'targetId', 'actorName', 'targetName', 'type', 'createdAt'])
+        && data.keys().hasOnly(['actorId', 'targetId', 'actorName', 'targetName', 'type', 'createdAt'])
+        && isValidId(data.actorId)
+        && isValidId(data.targetId)
+        && data.actorId != data.targetId
+        && data.actorName is string && data.actorName.size() >= 1 && data.actorName.size() <= 100
+        && data.targetName is string && data.targetName.size() >= 1 && data.targetName.size() <= 100
+        && data.type is string && data.type in ['follow', 'like']
+        && data.createdAt is timestamp;
+    }
+
+    function isValidChatRoom(data) {
+      return data.keys().hasAll([
+          'participantIds', 'participantNames', 'lastMessage', 'lastSenderId',
+          'messageCount', 'flaggedSpam', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'participantIds', 'participantNames', 'lastMessage', 'lastSenderId',
+          'messageCount', 'flaggedSpam', 'updatedAt'
+        ])
+        && data.participantIds is list && data.participantIds.size() == 2
+        && isValidId(data.participantIds[0]) && isValidId(data.participantIds[1])
+        && data.participantIds[0] != data.participantIds[1]
+        && data.participantNames is list && data.participantNames.size() == 2
+        && data.participantNames[0] is string && data.participantNames[0].size() >= 1 && data.participantNames[0].size() <= 100
+        && data.participantNames[1] is string && data.participantNames[1].size() >= 1 && data.participantNames[1].size() <= 100
+        && data.lastMessage is string && data.lastMessage.size() <= 1000
+        && isValidId(data.lastSenderId)
+        && data.messageCount is int && data.messageCount >= 0 && data.messageCount <= 1000000
+        && data.flaggedSpam is bool
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidChatMessage(data) {
+      return data.keys().hasAll([
+          'roomId', 'senderId', 'senderName', 'receiverId', 'text', 'isFlagged', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'roomId', 'senderId', 'senderName', 'receiverId', 'text', 'isFlagged', 'createdAt'
+        ])
+        && isValidId(data.roomId)
+        && isValidId(data.senderId)
+        && isValidId(data.receiverId)
+        && data.senderId != data.receiverId
+        && data.senderName is string && data.senderName.size() >= 1 && data.senderName.size() <= 100
+        && data.text is string && data.text.size() >= 1 && data.text.size() <= 2000
+        && data.isFlagged is bool
+        && data.createdAt is timestamp;
+    }
+
     match /publicSites/{siteId} {
       allow get: if isValidId(siteId);
       allow list: if false;
@@ -208,6 +297,145 @@ service cloud.firestore {
         && incoming().ownerId == existing().ownerId
         && incoming().updatedAt == request.time;
       allow delete: if isValidId(siteId) && isOwner(siteId);
+    }
+
+    match /appUsers/{appUserId} {
+      allow get: if isValidId(appUserId) && (isAdmin() || (isVerified() && request.auth.uid == appUserId));
+      allow list: if isVerifiedAdminEmail() || (isVerified() && resource.data.uid == request.auth.uid);
+      allow create: if isValidId(appUserId)
+        && isValidAppUser(incoming())
+        && incoming().uid == appUserId
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin()
+          || (
+            isVerified()
+            && request.auth.uid == appUserId
+            && incoming().isBlocked == false
+            && incoming().blockReason == ''
+            && incoming().followersCount == 0
+            && incoming().followingCount == 0
+            && incoming().likesReceivedCount == 0
+          )
+        );
+      allow update: if isValidId(appUserId)
+        && isValidAppUser(incoming())
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin()
+          || (
+            isVerified()
+            && request.auth.uid == appUserId
+            && incoming().isBlocked == existing().isBlocked
+            && incoming().blockReason == existing().blockReason
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'displayName', 'username', 'city', 'address', 'bio', 'isOnline', 'updatedAt'
+            ])
+          )
+        );
+      allow delete: if isValidId(appUserId) && isAdmin();
+    }
+
+    match /socialEdges/{edgeId} {
+      allow get: if isValidId(edgeId) && (
+        isAdmin()
+        || (isVerified() && (existing().actorId == request.auth.uid || existing().targetId == request.auth.uid))
+      );
+      allow list: if isVerifiedAdminEmail()
+        || (isVerified() && (resource.data.actorId == request.auth.uid || resource.data.targetId == request.auth.uid));
+      allow create: if isValidId(edgeId)
+        && isValidSocialEdge(incoming())
+        && incoming().createdAt == request.time
+        && (
+          isAdmin()
+          || (
+            isVerified()
+            && incoming().actorId == request.auth.uid
+            && exists(/databases/$(database)/documents/appUsers/$(incoming().actorId))
+            && exists(/databases/$(database)/documents/appUsers/$(incoming().targetId))
+          )
+        );
+      allow update: if false;
+      allow delete: if isValidId(edgeId) && (
+        isAdmin()
+        || (isVerified() && existing().actorId == request.auth.uid)
+      );
+    }
+
+    match /chatRooms/{roomId} {
+      allow get: if isValidId(roomId) && (
+        isAdmin()
+        || (isVerified() && request.auth.uid in existing().participantIds)
+      );
+      allow list: if isVerifiedAdminEmail()
+        || (isVerified() && request.auth.uid in resource.data.participantIds);
+      allow create: if isValidId(roomId)
+        && isValidChatRoom(incoming())
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin()
+          || (
+            isVerified()
+            && request.auth.uid in incoming().participantIds
+            && incoming().lastSenderId == request.auth.uid
+            && incoming().flaggedSpam == false
+          )
+        );
+      allow update: if isValidId(roomId)
+        && isValidChatRoom(incoming())
+        && incoming().participantIds == existing().participantIds
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin()
+          || (
+            isVerified()
+            && request.auth.uid in existing().participantIds
+            && incoming().lastSenderId == request.auth.uid
+            && incoming().flaggedSpam == existing().flaggedSpam
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'lastMessage', 'lastSenderId', 'messageCount', 'updatedAt'
+            ])
+          )
+        );
+      allow delete: if isValidId(roomId) && isAdmin();
+
+      match /messages/{messageId} {
+        allow get: if isValidId(roomId) && isValidId(messageId) && (
+          isAdmin()
+          || (isVerified() && request.auth.uid in get(/databases/$(database)/documents/chatRooms/$(roomId)).data.participantIds)
+        );
+        allow list: if isVerifiedAdminEmail()
+          || (isVerified() && (resource.data.senderId == request.auth.uid || resource.data.receiverId == request.auth.uid));
+        allow create: if isValidId(roomId)
+          && isValidId(messageId)
+          && isValidChatMessage(incoming())
+          && incoming().roomId == roomId
+          && incoming().createdAt == request.time
+          && exists(/databases/$(database)/documents/chatRooms/$(roomId))
+          && (
+            isAdmin()
+            || (
+              isVerified()
+              && incoming().senderId == request.auth.uid
+              && incoming().isFlagged == false
+              && request.auth.uid in get(/databases/$(database)/documents/chatRooms/$(roomId)).data.participantIds
+              && get(/databases/$(database)/documents/appUsers/$(request.auth.uid)).data.isBlocked == false
+            )
+          );
+        allow update: if isValidId(roomId)
+          && isValidId(messageId)
+          && isValidChatMessage(incoming())
+          && incoming().roomId == existing().roomId
+          && incoming().senderId == existing().senderId
+          && incoming().receiverId == existing().receiverId
+          && incoming().createdAt == existing().createdAt
+          && isAdmin()
+          && incoming().diff(existing()).affectedKeys().hasOnly(['isFlagged', 'text']);
+        allow delete: if isValidId(roomId) && isValidId(messageId) && isAdmin();
+      }
     }
 
     match /users/{userId} {
