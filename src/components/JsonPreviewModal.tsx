@@ -3,6 +3,7 @@ import { Check, Copy, Download, X } from 'lucide-react';
 import type { ShayariLokConfig } from '../types/config';
 import { encodeUtf8Base64, getUtf8ByteLength } from '../utils/base64';
 import { serializeConfigJson } from '../utils/configHelpers';
+import { copyTextWithFeedback } from '../utils/clipboardToast';
 
 interface JsonPreviewModalProps {
   open: boolean;
@@ -30,12 +31,13 @@ export const JsonPreviewModal: React.FC<JsonPreviewModalProps> = ({
     viewMode === 'json' ? jsonString : encodeUtf8Base64(jsonString + '\n');
 
   const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(outputContent);
+    const ok = await copyTextWithFeedback(
+      outputContent,
+      viewMode === 'json' ? 'config.json' : 'Base64 Payload'
+    );
+    if (ok) {
       setCopied(true);
-      setTimeout(() => setCopied(false), 1800);
-    } catch {
-      // Clipboard fallback ignored if blocked
+      setTimeout(() => setCopied(false), 2000);
     }
   };
 
@@ -129,7 +131,7 @@ export const JsonPreviewModal: React.FC<JsonPreviewModalProps> = ({
               {copied ? (
                 <>
                   <Check className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Copied</span>
+                  <span className="text-emerald-700 font-semibold">Copied Successfully!</span>
                 </>
               ) : (
                 <>

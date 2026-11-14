@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   RefreshCw,
   Settings,
+  Smartphone,
   Waypoints,
   X,
 } from 'lucide-react';
@@ -45,6 +46,7 @@ const NAV_ITEMS: Array<{
   { id: 'notifications', label: 'Notifications & Alerts', icon: Bell },
   { id: 'monetization', label: 'Monetization & Links', icon: Coins },
   { id: 'website', label: 'Live Websites', icon: Globe },
+  { id: 'android-api', label: 'Android App API & Code', icon: Smartphone },
   { id: 'proxy', label: 'Proxy & Routing', icon: Waypoints },
   { id: 'sync', label: 'GitHub Sync & Auth', icon: GitBranch },
   { id: 'settings', label: 'Enterprise Settings', icon: Settings },

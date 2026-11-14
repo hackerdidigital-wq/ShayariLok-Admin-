@@ -3,8 +3,10 @@ import type { User } from 'firebase/auth';
 import {
   ArrowLeft,
   ArrowRight,
+  Check,
   CheckCircle2,
   ChevronLeft,
+  Copy,
   Download,
   FileUp,
   Globe,
@@ -21,6 +23,7 @@ import {
   Upload,
   X,
 } from 'lucide-react';
+import { copyTextWithFeedback } from '../utils/clipboardToast';
 import type {
   GitHubSettings,
   ProxySettings,
@@ -30,6 +33,7 @@ import {
   DEFAULT_CONFIG,
   PACKAGE_ID,
   normalizeConfig,
+  serializeConfigJson,
 } from '../utils/configHelpers';
 import {
   auditConfigHygiene,
@@ -127,7 +131,19 @@ export const FullScreenSettingsPage: React.FC<FullScreenSettingsPageProps> = ({
     type: 'success' | 'error';
     text: string;
   } | null>(null);
+  const [copiedTag, setCopiedTag] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleCopyText = (tag: string, text: string, label: string) => {
+    void copyTextWithFeedback(text, label).then((ok) => {
+      if (ok) {
+        setCopiedTag(tag);
+        window.setTimeout(() => {
+          setCopiedTag((prev) => (prev === tag ? null : prev));
+        }, 2000);
+      }
+    });
+  };
 
   React.useEffect(() => {
     setDraftEnt(enterprise);
@@ -972,6 +988,29 @@ export const FullScreenSettingsPage: React.FC<FullScreenSettingsPageProps> = ({
                         </button>
                         <button
                           type="button"
+                          onClick={() =>
+                            handleCopyText(
+                              'backup-json',
+                              serializeConfigJson(config),
+                              'config.json'
+                            )
+                          }
+                          className="flex items-center gap-1.5 px-4 py-2.5 text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100"
+                        >
+                          {copiedTag === 'backup-json' ? (
+                            <>
+                              <Check className="w-4 h-4 text-emerald-700" />
+                              <span className="text-emerald-700">Copied Successfully!</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-4 h-4" />
+                              <span>Copy Live JSON</span>
+                            </>
+                          )}
+                        </button>
+                        <button
+                          type="button"
                           onClick={handleExportFullBackup}
                           className="flex items-center gap-1.5 px-4 py-2.5 text-xs font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700"
                         >
@@ -1064,12 +1103,37 @@ export const FullScreenSettingsPage: React.FC<FullScreenSettingsPageProps> = ({
                       </div>
 
                       <div>
-                        <label
-                          htmlFor="bulk-shayari-textarea"
-                          className="block text-xs font-semibold text-slate-700 mb-1.5"
-                        >
-                          Paste Multi-Line Shayaris (separated by ---)
-                        </label>
+                        <div className="flex items-center justify-between gap-2 mb-1.5">
+                          <label
+                            htmlFor="bulk-shayari-textarea"
+                            className="block text-xs font-semibold text-slate-700"
+                          >
+                            Paste Multi-Line Shayaris (separated by ---)
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleCopyText(
+                                'bulk-sample',
+                                'तेरी ख़ामोशी भी मुझसे कुछ कहती है,\nहर धड़कन में तेरी ही याद रहती है।\n---\nमंज़िलें उन्हीं को मिलती हैं जिनके सपनों में जान होती है,\nपंखों से कुछ नहीं होता, हौसलों से उड़ान होती है।',
+                                'Bulk Batch Template'
+                              )
+                            }
+                            className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-indigo-700 bg-indigo-50 rounded-md hover:bg-indigo-100"
+                          >
+                            {copiedTag === 'bulk-sample' ? (
+                              <>
+                                <Check className="w-3 h-3 text-emerald-700" />
+                                <span className="text-emerald-700">Copied Successfully!</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-3 h-3" />
+                                <span>Copy Sample Format</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
                         <textarea
                           id="bulk-shayari-textarea"
                           rows={9}
@@ -1240,14 +1304,39 @@ export const FullScreenSettingsPage: React.FC<FullScreenSettingsPageProps> = ({
                         {enterprise.environment}
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => window.print()}
-                      className="flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-slate-900 rounded-lg hover:bg-slate-800 no-print self-start sm:self-auto"
-                    >
-                      <Printer className="w-4 h-4" />
-                      <span>Print / Save PDF</span>
-                    </button>
+                    <div className="flex flex-wrap items-center gap-2 no-print self-start sm:self-auto">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleCopyText(
+                            'release-summary',
+                            `${enterprise.organizationName} Release Audit\nApp: ${config.app_name} (${PACKAGE_ID})\nVersion: v${config.latest_version_code}\nShayaris: ${config.shayari_list.length}\nMaintenance: ${config.maintenance_mode ? 'ON' : 'OFF'}\nAdMob: ${config.ads_enabled ? 'Enabled' : 'Paused'}\nGitHub: ${githubSettings.owner}/${githubSettings.repo}@${githubSettings.branch}/${githubSettings.path}`,
+                            'Release Audit Summary'
+                          )
+                        }
+                        className="flex items-center gap-1.5 px-4 py-2.5 text-sm font-semibold text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200"
+                      >
+                        {copiedTag === 'release-summary' ? (
+                          <>
+                            <Check className="w-4 h-4 text-emerald-700" />
+                            <span className="text-emerald-700">Copied Successfully!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-4 h-4" />
+                            <span>Copy Report</span>
+                          </>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => window.print()}
+                        className="flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-slate-900 rounded-lg hover:bg-slate-800"
+                      >
+                        <Printer className="w-4 h-4" />
+                        <span>Print / Save PDF</span>
+                      </button>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">

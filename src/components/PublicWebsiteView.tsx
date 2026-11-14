@@ -5,16 +5,19 @@ import {
   Bell,
   BookOpenText,
   Check,
+  ChevronDown,
+  ChevronUp,
   Copy,
   Download,
   ExternalLink,
   Image as ImageIcon,
+  ListOrdered,
   Menu,
   Search,
-  ShieldCheck,
   Sparkles,
   X,
 } from 'lucide-react';
+import { copyTextWithFeedback } from '../utils/clipboardToast';
 import heroJournalImg from '../assets/images/shayari_hero_journal_1794594369519.jpg';
 import loveSunsetImg from '../assets/images/shayari_love_sunset_1794595124934.jpg';
 import rainWindowImg from '../assets/images/shayari_rain_window_1794595125243.jpg';
@@ -91,9 +94,13 @@ export const PublicWebsiteView: React.FC<PublicWebsiteViewProps> = ({
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [notifDrawerOpen, setNotifDrawerOpen] = useState(false);
+  const [tocOpen, setTocOpen] = useState(true);
   const [heroImgError, setHeroImgError] = useState(false);
   const [brokenPhotoThemes, setBrokenPhotoThemes] = useState<
     Partial<Record<PhotoShayariThemeId, boolean>>
+  >({});
+  const [brokenShayariImgs, setBrokenShayariImgs] = useState<
+    Record<number, boolean>
   >({});
 
   const brandName = config.app_name.trim() || 'Shayari Lok';
@@ -131,27 +138,33 @@ export const PublicWebsiteView: React.FC<PublicWebsiteViewProps> = ({
 
   const handleCopyText = async (key: string, text: string, author: string) => {
     const formatted = `${text}\n\n— ${author} (${brandName})`;
-    try {
-      await navigator.clipboard.writeText(formatted);
+    const ok = await copyTextWithFeedback(formatted, brandName);
+    if (ok) {
       setCopiedKey(key);
       window.setTimeout(() => {
         setCopiedKey((prev) => (prev === key ? null : prev));
-      }, 1800);
-    } catch {
-      // Ignore if clipboard API blocked in non-secure context
+      }, 2000);
+    }
+  };
+
+  const scrollToPolicySection = (sectionId: string) => {
+    if (typeof document === 'undefined') return;
+    const target = document.getElementById(sectionId);
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   };
 
   return (
-    <div className="min-h-screen w-full bg-[#FAF9F6] text-slate-900 flex flex-col">
-      {/* Strict 3-Zone Top Bar Contract — Zero Admin Chrome */}
-      <header className="sticky top-0 z-40 h-16 bg-white/95 backdrop-blur-xs border-b border-slate-200 px-4 sm:px-8">
-        <div className="max-w-7xl mx-auto h-full flex items-center justify-between gap-6">
-          {/* Zone 1: Single-line Brand Wordmark */}
+    <div className="min-h-screen w-full bg-[#F7F7F7] text-slate-900 flex flex-col">
+      {/* Classic Forest Green Top Header (#2D5E36 matching shayarilok.in) — Zero Admin Chrome */}
+      <header className="sticky top-0 z-40 h-16 bg-[#2D5E36] text-white border-b border-[#234b2a] px-4 sm:px-8">
+        <div className="max-w-7xl mx-auto h-full flex items-center justify-between gap-4 sm:gap-6">
+          {/* Zone 1: Classic Serif Brand Wordmark */}
           {isPrivacyOnlyMode && standaloneWebsiteHref ? (
             <a
               href={standaloneWebsiteHref}
-              className="font-display text-xl font-bold tracking-tight text-slate-900 whitespace-nowrap shrink-0"
+              className="font-editorial-serif text-xl sm:text-2xl font-bold tracking-tight text-white whitespace-nowrap shrink-0"
             >
               {brandName}
             </a>
@@ -159,7 +172,7 @@ export const PublicWebsiteView: React.FC<PublicWebsiteViewProps> = ({
             <button
               type="button"
               onClick={() => onNavigatePage('home')}
-              className="font-display text-xl font-bold tracking-tight text-slate-900 whitespace-nowrap shrink-0 text-left"
+              className="font-editorial-serif text-xl sm:text-2xl font-bold tracking-tight text-white whitespace-nowrap shrink-0 text-left"
             >
               {brandName}
             </button>
@@ -168,7 +181,7 @@ export const PublicWebsiteView: React.FC<PublicWebsiteViewProps> = ({
           {/* Zone 2: 5 Concise Single-Line Nav Links */}
           <nav
             aria-label="Website navigation"
-            className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-600"
+            className="hidden md:flex items-center gap-6 text-sm font-medium text-emerald-50/90"
           >
             {SITE_NAV_ITEMS.map((item) => {
               const active = page === item.id;
@@ -184,8 +197,8 @@ export const PublicWebsiteView: React.FC<PublicWebsiteViewProps> = ({
                     href={standalonePrivacyHref}
                     className={`whitespace-nowrap shrink-0 pb-0.5 transition-colors ${
                       active
-                        ? 'text-indigo-700 font-semibold border-b-2 border-indigo-600'
-                        : 'hover:text-slate-900'
+                        ? 'text-white font-semibold border-b-2 border-white'
+                        : 'hover:text-white'
                     }`}
                   >
                     {item.label}
@@ -201,7 +214,7 @@ export const PublicWebsiteView: React.FC<PublicWebsiteViewProps> = ({
                   <a
                     key={item.id}
                     href={targetUrl}
-                    className="whitespace-nowrap shrink-0 pb-0.5 hover:text-slate-900 transition-colors"
+                    className="whitespace-nowrap shrink-0 pb-0.5 hover:text-white transition-colors"
                   >
                     {item.label}
                   </a>
@@ -214,8 +227,8 @@ export const PublicWebsiteView: React.FC<PublicWebsiteViewProps> = ({
                   onClick={() => onNavigatePage(item.id)}
                   className={`whitespace-nowrap shrink-0 pb-0.5 transition-colors ${
                     active
-                      ? 'text-indigo-700 font-semibold border-b-2 border-indigo-600'
-                      : 'hover:text-slate-900'
+                      ? 'text-white font-semibold border-b-2 border-white'
+                      : 'hover:text-white'
                   }`}
                 >
                   {item.label}
@@ -224,13 +237,13 @@ export const PublicWebsiteView: React.FC<PublicWebsiteViewProps> = ({
             })}
           </nav>
 
-          {/* Zone 3: Live Notification Bell + Download CTA + Preview Back + Mobile Toggle */}
+          {/* Zone 3: Live Notification Bell + Download CTA + Preview Back + Mobile Menu */}
           <div className="flex items-center gap-2 shrink-0">
             {onBackToAdmin && (
               <button
                 type="button"
                 onClick={onBackToAdmin}
-                className="hidden sm:inline-flex items-center px-3 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors whitespace-nowrap shrink-0"
+                className="hidden sm:inline-flex items-center px-3 py-2 text-xs font-medium text-white bg-white/15 border border-white/25 rounded-lg hover:bg-white/25 transition-colors whitespace-nowrap shrink-0"
               >
                 ← Admin
               </button>
@@ -242,13 +255,13 @@ export const PublicWebsiteView: React.FC<PublicWebsiteViewProps> = ({
                   onClick={() => setNotifDrawerOpen((prev) => !prev)}
                   aria-label="Open live notifications"
                   aria-expanded={notifDrawerOpen}
-                  className="relative p-2.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors shrink-0"
+                  className="relative p-2.5 rounded-lg border border-white/25 bg-white/10 text-white hover:bg-white/20 transition-colors shrink-0"
                 >
                   <Bell className="w-4 h-4" />
                   {config.notifications.length > 0 && (
                     <span
                       data-testid="website-notif-badge"
-                      className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-indigo-700 text-white font-mono text-[10px] font-bold tabular-nums"
+                      className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-amber-400 text-slate-950 font-mono text-[10px] font-bold tabular-nums"
                     >
                       {config.notifications.length}
                     </span>
@@ -346,23 +359,25 @@ export const PublicWebsiteView: React.FC<PublicWebsiteViewProps> = ({
               href={config.force_update_url || '#'}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 text-xs sm:text-sm font-semibold text-white bg-indigo-700 rounded-lg hover:bg-indigo-800 transition-colors whitespace-nowrap shrink-0"
+              className="flex items-center gap-1.5 px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold text-[#1f4626] bg-white rounded-lg hover:bg-emerald-50 transition-colors whitespace-nowrap shrink-0"
             >
               <Download className="w-3.5 h-3.5" />
-              <span>Download App</span>
+              <span className="hidden sm:inline">Download App</span>
+              <span className="sm:hidden">App</span>
             </a>
 
             <button
               type="button"
               onClick={() => setMobileNavOpen((prev) => !prev)}
               aria-label={mobileNavOpen ? 'Close website menu' : 'Open website menu'}
-              className="md:hidden p-2 rounded-lg text-slate-600 hover:bg-slate-100 shrink-0"
+              className="md:hidden flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-medium text-white hover:bg-white/10 shrink-0"
             >
               {mobileNavOpen ? (
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               ) : (
-                <Menu className="w-5 h-5" />
+                <Menu className="w-4 h-4" />
               )}
+              <span>Menu</span>
             </button>
           </div>
         </div>
@@ -804,44 +819,63 @@ export const PublicWebsiteView: React.FC<PublicWebsiteViewProps> = ({
                 {filteredShayaris.slice(0, 6).map((item) => {
                   const copyKey = `home-sh-${item.id}`;
                   const isCopied = copiedKey === copyKey;
+                  const showItemImg = Boolean(
+                    item.image_url?.trim() && !brokenShayariImgs[item.id]
+                  );
                   return (
                     <article
                       key={item.id}
-                      className="bg-white border border-slate-200 rounded-2xl p-6 flex flex-col justify-between gap-5"
+                      className="bg-white border border-slate-200 rounded-2xl overflow-hidden flex flex-col justify-between"
                     >
-                      <div className="space-y-3">
-                        <div className="text-xs font-medium text-slate-500 font-mono tabular-nums">
-                          {item.category} · #{item.id}
-                        </div>
-                        <p className="text-base text-slate-900 whitespace-pre-line leading-relaxed shayari-prose">
-                          {item.text}
-                        </p>
-                      </div>
-
-                      <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-2">
-                        <span className="text-xs font-medium text-slate-600">
-                          — {item.author}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            void handleCopyText(copyKey, item.text, item.author)
+                      {showItemImg && (
+                        <img
+                          src={item.image_url}
+                          alt={`${item.category} shayari visual`}
+                          referrerPolicy="no-referrer"
+                          onError={() =>
+                            setBrokenShayariImgs((prev) => ({
+                              ...prev,
+                              [item.id]: true,
+                            }))
                           }
-                          aria-label={`Copy shayari #${item.id}`}
-                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors"
-                        >
-                          {isCopied ? (
-                            <>
-                              <Check className="w-3.5 h-3.5 text-emerald-700" />
-                              <span className="text-emerald-700">Copied</span>
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="w-3.5 h-3.5" />
-                              <span>Copy</span>
-                            </>
-                          )}
-                        </button>
+                          className="w-full h-44 object-cover border-b border-slate-100"
+                        />
+                      )}
+                      <div className="p-6 flex-1 flex flex-col justify-between gap-5">
+                        <div className="space-y-3">
+                          <div className="text-xs font-medium text-[#2D5E36] font-mono tabular-nums">
+                            {item.category} · #{item.id}
+                          </div>
+                          <p className="text-base text-slate-900 whitespace-pre-line leading-relaxed shayari-prose">
+                            {item.text}
+                          </p>
+                        </div>
+
+                        <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-2">
+                          <span className="text-xs font-medium text-slate-600">
+                            — {item.author}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void handleCopyText(copyKey, item.text, item.author)
+                            }
+                            aria-label={`Copy shayari #${item.id}`}
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors"
+                          >
+                            {isCopied ? (
+                              <>
+                                <Check className="w-3.5 h-3.5 text-emerald-700" />
+                                <span className="text-emerald-700">Copied Successfully!</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-3.5 h-3.5" />
+                                <span>Copy</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
                       </div>
                     </article>
                   );
@@ -936,43 +970,62 @@ export const PublicWebsiteView: React.FC<PublicWebsiteViewProps> = ({
               {filteredShayaris.map((item) => {
                 const copyKey = `lib-${item.id}`;
                 const isCopied = copiedKey === copyKey;
+                const showItemImg = Boolean(
+                  item.image_url?.trim() && !brokenShayariImgs[item.id]
+                );
                 return (
                   <article
                     key={item.id}
-                    className="bg-white border border-slate-200 rounded-2xl p-6 flex flex-col justify-between gap-5"
+                    className="bg-white border border-slate-200 rounded-2xl overflow-hidden flex flex-col justify-between"
                   >
-                    <div className="space-y-3">
-                      <div className="text-xs font-medium text-slate-500 font-mono tabular-nums">
-                        {item.category} · #{item.id}
-                      </div>
-                      <p className="text-base text-slate-900 whitespace-pre-line leading-relaxed shayari-prose">
-                        {item.text}
-                      </p>
-                    </div>
-                    <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-2">
-                      <span className="text-xs font-medium text-slate-600">
-                        — {item.author}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          void handleCopyText(copyKey, item.text, item.author)
+                    {showItemImg && (
+                      <img
+                        src={item.image_url}
+                        alt={`${item.category} shayari visual`}
+                        referrerPolicy="no-referrer"
+                        onError={() =>
+                          setBrokenShayariImgs((prev) => ({
+                            ...prev,
+                            [item.id]: true,
+                          }))
                         }
-                        aria-label={`Copy shayari #${item.id}`}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200"
-                      >
-                        {isCopied ? (
-                          <>
-                            <Check className="w-3.5 h-3.5 text-emerald-700" />
-                            <span className="text-emerald-700">Copied</span>
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="w-3.5 h-3.5" />
-                            <span>Copy</span>
-                          </>
-                        )}
-                      </button>
+                        className="w-full h-44 object-cover border-b border-slate-100"
+                      />
+                    )}
+                    <div className="p-6 flex-1 flex flex-col justify-between gap-5">
+                      <div className="space-y-3">
+                        <div className="text-xs font-medium text-[#2D5E36] font-mono tabular-nums">
+                          {item.category} · #{item.id}
+                        </div>
+                        <p className="text-base text-slate-900 whitespace-pre-line leading-relaxed shayari-prose">
+                          {item.text}
+                        </p>
+                      </div>
+                      <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-2">
+                        <span className="text-xs font-medium text-slate-600">
+                          — {item.author}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void handleCopyText(copyKey, item.text, item.author)
+                          }
+                          aria-label={`Copy shayari #${item.id}`}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200"
+                        >
+                          {isCopied ? (
+                            <>
+                              <Check className="w-3.5 h-3.5 text-emerald-700" />
+                              <span className="text-emerald-700">Copied Successfully!</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3.5 h-3.5" />
+                              <span>Copy</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
                     </div>
                   </article>
                 );
@@ -1167,134 +1220,286 @@ export const PublicWebsiteView: React.FC<PublicWebsiteViewProps> = ({
         </main>
       )}
 
-      {/* PAGE 5: Standalone Hosted Privacy Policy Website */}
+      {/* PAGE 5: Classic ("Purane Andaj") Hosted Privacy Policy Website */}
       {page === 'privacy' && (
-        <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-8 py-8 space-y-6">
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-10 space-y-6">
-            <div className="flex items-start gap-3 pb-5 border-b border-slate-200">
-              <ShieldCheck className="w-6 h-6 text-indigo-700 shrink-0 mt-0.5" />
-              <div>
-                <h1 className="font-display text-2xl sm:text-3xl font-bold text-slate-900">
-                  Privacy Policy — {brandName}
-                </h1>
-                <p className="mt-1 text-xs font-mono text-slate-500 tabular-nums">
-                  Package: {PACKAGE_ID} · Publisher: {orgName}
-                </p>
-              </div>
+        <main className="flex-1 max-w-3xl w-full mx-auto px-4 sm:px-6 py-8 sm:py-10">
+          <article className="bg-white border border-slate-200 rounded-xl p-6 sm:p-10 space-y-6">
+            <div className="space-y-1.5">
+              <h1 className="font-editorial-serif text-3xl sm:text-4xl font-bold text-slate-900">
+                Privacy Policy
+              </h1>
+              <p className="text-xs font-mono text-slate-500 tabular-nums">
+                {brandName} · {PACKAGE_ID} · Published by {orgName}
+              </p>
             </div>
 
-            <div className="space-y-4 text-sm text-slate-700 leading-relaxed">
-              <p>
-                <strong>{orgName}</strong> built the <strong>{brandName}</strong>{' '}
-                application ({PACKAGE_ID}) as an ad-supported / community Hindi
-                &amp; Hinglish Shayari and Suvichar platform. This standalone page
-                informs Android app users and website visitors regarding our
-                policies on data collection, remote configuration, and third-party
-                services.
-              </p>
-
-              <h2 className="font-display text-base font-bold text-slate-900 pt-2">
-                1. Remote Content &amp; Real-Time Configuration
-              </h2>
-              <p>
-                {brandName} fetches curated shayari lists, photo shayari cards,
-                suvichar thoughts, app announcements, and maintenance notices via
-                remote JSON and cloud sync. Reading content or copying shayaris to
-                your clipboard does not require user registration or personal
-                account tracking.
-              </p>
-
-              <h2 className="font-display text-base font-bold text-slate-900 pt-2">
-                2. Advertising &amp; Third-Party Services (Google AdMob)
-              </h2>
-              <p>
-                {config.ads_enabled
-                  ? 'Advertising is currently enabled in this release using Google AdMob. AdMob may collect anonymized device identifiers and diagnostic signals to serve relevant ads in accordance with Google Privacy Policies.'
-                  : 'Advertising is currently paused in the active remote configuration. No third-party ad networks are serving banners or interstitials while ads remain disabled.'}
-              </p>
-
-              <h2 className="font-display text-base font-bold text-slate-900 pt-2">
-                3. Contact, Official Website &amp; Policy URL
-              </h2>
-              <p>
-                For privacy inquiries or content takedown requests, contact{' '}
-                <span className="font-mono text-slate-900">
-                  {supportEmail || 'support@shayarilok.in'}
+            {/* Classic Bordered Collapsible Table of Contents Box */}
+            <div className="border border-slate-300 rounded-md bg-[#FAFAFA] p-4 sm:p-5 max-w-md">
+              <div className="flex items-center justify-between gap-3">
+                <span className="font-editorial-serif text-lg font-bold text-slate-900">
+                  Table of Contents
                 </span>
-                .
-              </p>
+                <button
+                  type="button"
+                  onClick={() => setTocOpen((prev) => !prev)}
+                  aria-expanded={tocOpen}
+                  aria-label="Toggle table of contents"
+                  className="inline-flex items-center gap-1 px-2 py-1 border border-slate-300 rounded bg-white text-slate-600 hover:bg-slate-100"
+                >
+                  <ListOrdered className="w-3.5 h-3.5" />
+                  {tocOpen ? (
+                    <ChevronUp className="w-3.5 h-3.5" />
+                  ) : (
+                    <ChevronDown className="w-3.5 h-3.5" />
+                  )}
+                </button>
+              </div>
 
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div>
-                    <div className="text-xs font-semibold text-slate-500">
-                      Official Shayari Lok Website
+              {tocOpen && (
+                <ol className="mt-3 space-y-1.5 text-sm font-editorial-serif text-slate-800">
+                  {[
+                    { id: 'who-we-are', num: '1.', label: 'Who we are' },
+                    {
+                      id: 'remote-config',
+                      num: '2.',
+                      label: 'Remote Shayari & Real-Time Configuration',
+                    },
+                    {
+                      id: 'advertising',
+                      num: '3.',
+                      label: 'Advertising & Third-Party AdMob Services',
+                    },
+                    { id: 'cookies', num: '4.', label: 'Local Storage & Cookies' },
+                    {
+                      id: 'embedded-content',
+                      num: '5.',
+                      label: 'Images, Photo Shayari & External Links',
+                    },
+                    {
+                      id: 'data-sharing',
+                      num: '6.',
+                      label: 'Who we share your data with',
+                    },
+                    {
+                      id: 'data-retention',
+                      num: '7.',
+                      label: 'How long we retain your data',
+                    },
+                    {
+                      id: 'your-rights',
+                      num: '8.',
+                      label: 'What rights you have over your data',
+                    },
+                    {
+                      id: 'contact-official',
+                      num: '9.',
+                      label: 'Contact, Official Website & Policy URL',
+                    },
+                  ].map((item) => (
+                    <li key={item.id}>
+                      <button
+                        type="button"
+                        onClick={() => scrollToPolicySection(item.id)}
+                        className="text-left hover:text-[#2D5E36] hover:underline transition-colors"
+                      >
+                        <span className="mr-1.5 text-slate-500">{item.num}</span>
+                        <span>{item.label}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </div>
+
+            <div className="space-y-6 text-[15px] text-slate-800 leading-relaxed font-editorial-serif">
+              <section id="who-we-are" className="space-y-2 scroll-mt-20">
+                <h2 className="text-xl sm:text-2xl font-bold text-slate-900">
+                  1. Who we are
+                </h2>
+                <p>
+                  <strong>{orgName}</strong> publishes the{' '}
+                  <strong>{brandName}</strong> Android application (
+                  <span className="font-mono text-sm">{PACKAGE_ID}</span>) and
+                  official web portal. Our platform delivers curated Hindi and
+                  Hinglish Shayari, Photo Shayari cards, and daily Suvichar
+                  thoughts without requiring mandatory account sign-up from
+                  readers.
+                </p>
+              </section>
+
+              <section id="remote-config" className="space-y-2 scroll-mt-20">
+                <h2 className="text-xl sm:text-2xl font-bold text-slate-900">
+                  2. Remote Shayari &amp; Real-Time Configuration
+                </h2>
+                <p>
+                  When you open {brandName}, the app and standalone website fetch
+                  the latest Shayari collection, category chips, bell
+                  notifications, maintenance status, and version update notices
+                  from our remote configuration JSON feed. Standard HTTP request
+                  headers (such as temporary IP delivery by CDN providers like
+                  jsDelivr or GitHub) are processed only to serve content cleanly.
+                </p>
+              </section>
+
+              <section id="advertising" className="space-y-2 scroll-mt-20">
+                <h2 className="text-xl sm:text-2xl font-bold text-slate-900">
+                  3. Advertising &amp; Third-Party AdMob Services
+                </h2>
+                <p>
+                  {config.ads_enabled
+                    ? 'Advertising is currently enabled in this Android release using Google AdMob. AdMob may process Advertising ID and anonymized diagnostic signals to show relevant banner or interstitial ads in accordance with Google Privacy Policies.'
+                    : 'Advertising is currently paused in the active remote configuration. No third-party ad networks are serving banners or interstitials while ads remain disabled.'}
+                </p>
+              </section>
+
+              <section id="cookies" className="space-y-2 scroll-mt-20">
+                <h2 className="text-xl sm:text-2xl font-bold text-slate-900">
+                  4. Local Storage &amp; Cookies
+                </h2>
+                <p>
+                  We do not use invasive advertising tracking cookies on our
+                  standalone reader site. Temporary browser cache or local state
+                  may store selected category filters or recently fetched JSON
+                  content purely to improve page load speed on mobile networks.
+                </p>
+              </section>
+
+              <section id="embedded-content" className="space-y-2 scroll-mt-20">
+                <h2 className="text-xl sm:text-2xl font-bold text-slate-900">
+                  5. Images, Photo Shayari &amp; External Links
+                </h2>
+                <p>
+                  Shayari entries may include visual photo cards hosted via our
+                  CDN, and the app may link to official Telegram/social channels
+                  or Google Play Store for app updates. External destinations
+                  operate under their own respective privacy terms.
+                </p>
+              </section>
+
+              <section id="data-sharing" className="space-y-2 scroll-mt-20">
+                <h2 className="text-xl sm:text-2xl font-bold text-slate-900">
+                  6. Who we share your data with
+                </h2>
+                <p>
+                  We do not sell, rent, or trade personal user data. Only
+                  non-personal diagnostic or ad-delivery signals processed by
+                  Google Play Services / Google AdMob (when ads are active) are
+                  handled under Google&apos;s security standards.
+                </p>
+              </section>
+
+              <section id="data-retention" className="space-y-2 scroll-mt-20">
+                <h2 className="text-xl sm:text-2xl font-bold text-slate-900">
+                  7. How long we retain your data
+                </h2>
+                <p>
+                  Because {brandName} does not collect user registration
+                  profiles, comments, or private contact books, we do not retain
+                  personal reader accounts on our servers. Clipboard copies and
+                  category selections stay entirely on your device.
+                </p>
+              </section>
+
+              <section id="your-rights" className="space-y-2 scroll-mt-20">
+                <h2 className="text-xl sm:text-2xl font-bold text-slate-900">
+                  8. What rights you have over your data
+                </h2>
+                <p>
+                  You can reset your Android Advertising ID, clear app storage at
+                  any time from device settings, or contact our support address
+                  below regarding any content removal, copyright attribution, or
+                  privacy request.
+                </p>
+              </section>
+
+              <section id="contact-official" className="space-y-3 scroll-mt-20">
+                <h2 className="text-xl sm:text-2xl font-bold text-slate-900">
+                  9. Contact, Official Website &amp; Policy URL
+                </h2>
+                <p>
+                  For privacy inquiries or takedown requests, email{' '}
+                  <span className="font-mono text-sm text-slate-900 underline">
+                    {supportEmail || 'support@shayarilok.in'}
+                  </span>
+                  .
+                </p>
+
+                <div className="font-sans p-4 bg-[#F7F7F7] border border-slate-200 rounded-xl space-y-2.5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <div className="text-xs font-semibold text-slate-500">
+                        Official {brandName} User Website
+                      </div>
+                      {standaloneWebsiteHref ? (
+                        <a
+                          href={standaloneWebsiteHref}
+                          className="font-mono text-xs text-[#2D5E36] underline break-all"
+                        >
+                          {standaloneWebsiteHref}
+                        </a>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => onNavigatePage('home')}
+                          className="font-mono text-xs text-[#2D5E36] underline"
+                        >
+                          Open {brandName} Live Website
+                        </button>
+                      )}
                     </div>
                     {standaloneWebsiteHref ? (
                       <a
                         href={standaloneWebsiteHref}
-                        className="font-mono text-xs text-indigo-700 underline break-all"
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-[#2D5E36] rounded-lg hover:bg-[#234b2a] whitespace-nowrap shrink-0 self-start sm:self-auto"
                       >
-                        {standaloneWebsiteHref}
+                        <span>Open Official Website</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
                       </a>
                     ) : (
                       <button
                         type="button"
                         onClick={() => onNavigatePage('home')}
-                        className="font-mono text-xs text-indigo-700 underline"
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-[#2D5E36] rounded-lg hover:bg-[#234b2a] whitespace-nowrap shrink-0 self-start sm:self-auto"
                       >
-                        Open {brandName} Live Website
+                        <span>Open Official Website</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
                       </button>
                     )}
                   </div>
-                  {standaloneWebsiteHref ? (
-                    <a
-                      href={standaloneWebsiteHref}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-indigo-700 rounded-lg hover:bg-indigo-800 whitespace-nowrap shrink-0 self-start sm:self-auto"
-                    >
-                      <span>Open Official Website</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </a>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => onNavigatePage('home')}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-indigo-700 rounded-lg hover:bg-indigo-800 whitespace-nowrap shrink-0 self-start sm:self-auto"
-                    >
-                      <span>Open Official Website</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
 
-                <div className="pt-2 border-t border-slate-200 text-xs text-slate-600">
-                  Official Policy URL:{' '}
-                  <a
-                    href={resolveEffectivePolicyUrl(
-                      config.privacy_policy_url,
-                      standalonePrivacyHref
-                    )}
-                    className="font-mono text-indigo-700 underline break-all"
-                  >
-                    {resolveEffectivePolicyUrl(
-                      config.privacy_policy_url,
-                      standalonePrivacyHref
-                    )}
-                  </a>
+                  <div className="pt-2 border-t border-slate-200 text-xs text-slate-600">
+                    Official Policy URL:{' '}
+                    <a
+                      href={resolveEffectivePolicyUrl(
+                        config.privacy_policy_url,
+                        standalonePrivacyHref
+                      )}
+                      className="font-mono text-[#2D5E36] underline break-all"
+                    >
+                      {resolveEffectivePolicyUrl(
+                        config.privacy_policy_url,
+                        standalonePrivacyHref
+                      )}
+                    </a>
+                  </div>
                 </div>
-              </div>
+              </section>
             </div>
-          </div>
+          </article>
         </main>
       )}
 
-      {/* Clean Public Footer — Zero Admin Console Links */}
-      <footer className="bg-white border-t border-slate-200 px-4 sm:px-8 py-6 mt-auto">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-xs text-slate-500">
-          <div>
-            <span className="font-semibold text-slate-800">{brandName}</span> ·{' '}
-            {orgName} · {PACKAGE_ID}
-            {publicSyncState === 'live' && ' · Real-Time Live Sync Active'}
+      {/* Classic Dark Footer (#222222) — Zero Admin Console Links */}
+      <footer className="bg-[#222222] text-slate-300 border-t border-black/30 px-4 sm:px-8 py-7 mt-auto">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-xs">
+          <div className="space-y-1">
+            <div className="font-editorial-serif text-base font-bold text-white">
+              {brandName}
+            </div>
+            <div className="text-slate-400">
+              {orgName} · {PACKAGE_ID}
+              {publicSyncState === 'live' && ' · Real-Time Live Sync Active'}
+            </div>
           </div>
           <div className="flex flex-wrap items-center gap-4">
             {SITE_NAV_ITEMS.map((item) => {
@@ -1308,7 +1513,7 @@ export const PublicWebsiteView: React.FC<PublicWebsiteViewProps> = ({
                   <a
                     key={item.id}
                     href={standalonePrivacyHref}
-                    className="hover:text-slate-900"
+                    className="text-slate-300 hover:text-white transition-colors"
                   >
                     {item.label}
                   </a>
@@ -1320,7 +1525,11 @@ export const PublicWebsiteView: React.FC<PublicWebsiteViewProps> = ({
                     ? standaloneWebsiteHref
                     : `${standaloneWebsiteHref}${standaloneWebsiteHref.includes('?') ? '&' : '?'}page=${item.id}`;
                 return (
-                  <a key={item.id} href={targetUrl} className="hover:text-slate-900">
+                  <a
+                    key={item.id}
+                    href={targetUrl}
+                    className="text-slate-300 hover:text-white transition-colors"
+                  >
                     {item.label}
                   </a>
                 );
@@ -1330,7 +1539,7 @@ export const PublicWebsiteView: React.FC<PublicWebsiteViewProps> = ({
                   key={item.id}
                   type="button"
                   onClick={() => onNavigatePage(item.id)}
-                  className="hover:text-slate-900"
+                  className="text-slate-300 hover:text-white transition-colors"
                 >
                   {item.label}
                 </button>

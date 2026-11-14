@@ -121,6 +121,7 @@ export function normalizeConfig(raw: unknown): ShayariLokConfig {
       category: String(item.category ?? 'Love').trim() || 'Love',
       text: String(item.text ?? ''),
       author: String(item.author ?? 'अज्ञात').trim() || 'अज्ञात',
+      image_url: String(item.image_url ?? '').trim(),
     }));
 
   const parsedVersion = Number.parseInt(String(obj.latest_version_code ?? 1), 10);
@@ -174,6 +175,7 @@ export function serializeConfigJson(config: ShayariLokConfig): string {
       category: s.category,
       text: s.text,
       author: s.author,
+      image_url: String(s.image_url ?? '').trim(),
     })),
   };
   return JSON.stringify(ordered, null, 2);
@@ -225,6 +227,9 @@ export function prepareDraftForFirestore(config: ShayariLokConfig): ShayariLokCo
     announcement_message: normalized.announcement_message.slice(0, 1000),
     categories: ensureAllFirstCategory(normalized.categories).slice(0, 50),
     notifications: normalized.notifications.slice(0, 100),
-    shayari_list: normalized.shayari_list.slice(0, 500),
+    shayari_list: normalized.shayari_list.slice(0, 500).map((s) => ({
+      ...s,
+      image_url: String(s.image_url ?? '').trim().slice(0, 500),
+    })),
   };
 }

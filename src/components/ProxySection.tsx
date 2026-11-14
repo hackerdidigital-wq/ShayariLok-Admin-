@@ -31,6 +31,7 @@ import {
   normalizeProxyUrl,
   probeProxyEndpoint,
 } from '../utils/proxyEngine';
+import { copyTextWithFeedback } from '../utils/clipboardToast';
 
 interface ProxySectionProps {
   proxySettings: ProxySettings;
@@ -99,15 +100,13 @@ export const ProxySection: React.FC<ProxySectionProps> = ({
     [githubSettings, proxySettings]
   );
 
-  const handleCopy = async (id: string, value: string) => {
-    try {
-      await navigator.clipboard.writeText(value);
+  const handleCopy = async (id: string, value: string, label?: string) => {
+    const ok = await copyTextWithFeedback(value, label);
+    if (ok) {
       setCopiedId(id);
       window.setTimeout(() => {
         setCopiedId((prev) => (prev === id ? null : prev));
-      }, 1800);
-    } catch {
-      // Ignore clipboard permission errors
+      }, 2000);
     }
   };
 
@@ -928,13 +927,13 @@ export const ProxySection: React.FC<ProxySectionProps> = ({
 
               <button
                 type="button"
-                onClick={() => void handleCopy(item.id, item.url)}
+                onClick={() => void handleCopy(item.id, item.url, item.label)}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors whitespace-nowrap shrink-0 self-start sm:self-center"
               >
                 {copiedId === item.id ? (
                   <>
                     <Check className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Copied</span>
+                    <span className="text-emerald-700 font-semibold">Copied Successfully!</span>
                   </>
                 ) : (
                   <>
@@ -956,14 +955,18 @@ export const ProxySection: React.FC<ProxySectionProps> = ({
               <button
                 type="button"
                 onClick={() =>
-                  void handleCopy('worker-template', CLOUDFLARE_WORKER_TEMPLATE)
+                  void handleCopy(
+                    'worker-template',
+                    CLOUDFLARE_WORKER_TEMPLATE,
+                    'Cloudflare Worker Script'
+                  )
                 }
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 whitespace-nowrap"
               >
                 {copiedId === 'worker-template' ? (
                   <>
-                    <Check className="w-3.5 h-3.5" />
-                    <span>Copied Script</span>
+                    <Check className="w-3.5 h-3.5 text-emerald-700" />
+                    <span className="text-emerald-700">Copied Successfully!</span>
                   </>
                 ) : (
                   <>

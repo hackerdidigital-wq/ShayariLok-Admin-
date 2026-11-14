@@ -7,6 +7,8 @@ import {
 } from 'firebase/auth';
 import { AlertCircle, CheckCircle2, X } from 'lucide-react';
 import { AdminLockScreen } from './components/AdminLockScreen';
+import { AndroidApiSection } from './components/AndroidApiSection';
+import { CopyToastBanner } from './components/CopyToastBanner';
 import { DashboardSection } from './components/DashboardSection';
 import { FullScreenSettingsPage } from './components/FullScreenSettingsPage';
 import { GitHubSyncSection } from './components/GitHubSyncSection';
@@ -485,7 +487,8 @@ export default function App() {
     }
   };
 
-  const executePublish = async () => {
+  const executePublish = async (overrideConfig?: ShayariLokConfig) => {
+    const targetConfig = overrideConfig ?? config;
     setPublishConfirmWarnings(null);
     setSyncStatus('publishing');
     setStatusMessage('GitHub रिपॉज़िटरी में config.json कमिट हो रहा है...');
@@ -493,11 +496,11 @@ export default function App() {
     try {
       const effectiveMessage =
         commitMessage.trim() ||
-        `Update config.json via Shayari Lok Admin (v${config.latest_version_code})`;
+        `Update config.json via Shayari Lok Admin (v${targetConfig.latest_version_code})`;
 
       const res = await publishGitHubConfig(
         settings,
-        config,
+        targetConfig,
         currentSha,
         effectiveMessage,
         proxySettings,
@@ -506,7 +509,8 @@ export default function App() {
 
       setCurrentSha(res.sha);
       saveLocalSha(res.sha);
-      setBaselineConfig(config);
+      setConfig(targetConfig);
+      setBaselineConfig(targetConfig);
       setCommitMessage('');
       setSyncStatus('synced');
 
@@ -515,19 +519,19 @@ export default function App() {
       showBanner('success', okMsg);
       logActivity(
         'GitHub Published',
-        `v${config.latest_version_code} via ${res.routeLabel} (${res.sha.slice(0, 7)})`
+        `v${targetConfig.latest_version_code} via ${res.routeLabel} (${res.sha.slice(0, 7)})`
       );
 
       if (user) {
         await Promise.all([
           saveCloudRepoSettings(user.uid, settings, res.sha),
-          saveCloudDraft(user.uid, config),
+          saveCloudDraft(user.uid, targetConfig),
           recordPublishLog(user.uid, {
             commitSha: res.commitSha,
             branch: settings.branch.trim() || 'main',
             filePath: settings.path.trim() || 'config.json',
-            versionCode: config.latest_version_code,
-            shayariCount: config.shayari_list.length,
+            versionCode: targetConfig.latest_version_code,
+            shayariCount: targetConfig.shayari_list.length,
             message: effectiveMessage,
           }),
         ]);
@@ -573,6 +577,29 @@ export default function App() {
     }
 
     await executePublish();
+  };
+
+  const handlePublishConfigNow = async (nextConfig: ShayariLokConfig) => {
+    if (!isGitHubConfigured(settings, true)) {
+      navigateSection('sync');
+      showBanner(
+        'info',
+        'शायरी सेव हो गई है! GitHub config.json पर पब्लिश करने के लिए पहले Owner, Repo, Path और PAT सेव करें।'
+      );
+      return;
+    }
+
+    const guardrail = validatePublishGuardrails(
+      nextConfig,
+      enterprise,
+      commitMessage
+    );
+    if (!guardrail.ok) {
+      showBanner('error', guardrail.errors[0]);
+      return;
+    }
+
+    await executePublish(nextConfig);
   };
 
   const handleGoogleSignIn = async () => {
@@ -828,54 +855,60 @@ export default function App() {
   // Full-Screen Live Public Website Suite (#/site, #/site/shayari, #/site/suvichar, #/site/updates, #/site/privacy)
   if (routeState.view === 'site') {
     return (
-      <PublicWebsiteView
-        page={routeState.page}
-        onNavigatePage={navigatePublicSite}
-        onBackToAdmin={() => navigateSection('dashboard')}
-        config={config}
-        websiteContent={websiteContent}
-        organizationName={enterprise.organizationName}
-        supportEmail={enterprise.supportEmail}
-        publicSyncState={publicSyncState}
-        publicSyncMessage={publicSyncMessage}
-        standalonePrivacyHref={standalonePrivacyUrl}
-        standaloneWebsiteHref={standaloneWebsiteUrl}
-      />
+      <>
+        <PublicWebsiteView
+          page={routeState.page}
+          onNavigatePage={navigatePublicSite}
+          onBackToAdmin={() => navigateSection('dashboard')}
+          config={config}
+          websiteContent={websiteContent}
+          organizationName={enterprise.organizationName}
+          supportEmail={enterprise.supportEmail}
+          publicSyncState={publicSyncState}
+          publicSyncMessage={publicSyncMessage}
+          standalonePrivacyHref={standalonePrivacyUrl}
+          standaloneWebsiteHref={standaloneWebsiteUrl}
+        />
+        <CopyToastBanner />
+      </>
     );
   }
 
   // Full-Screen Enterprise Settings Hub & Individual 10 Setting Pages (#/settings, #/settings/<tab>)
   if (routeState.view === 'settings') {
     return (
-      <FullScreenSettingsPage
-        activeTab={routeState.tab}
-        onSelectTab={navigateSettingsTab}
-        onBackToAdmin={() => navigateSection('dashboard')}
-        onOpenLiveSite={() => navigatePublicSite('home')}
-        enterprise={enterprise}
-        onSaveEnterprise={handleSaveEnterprise}
-        config={config}
-        baselineConfig={baselineConfig}
-        onUpdateConfig={setConfig}
-        githubSettings={settings}
-        currentSha={currentSha}
-        commitMessage={commitMessage}
-        proxySettings={proxySettings}
-        snapshots={snapshots}
-        onCreateSnapshot={handleCreateSnapshot}
-        onRestoreSnapshot={handleRestoreSnapshot}
-        onDeleteSnapshot={handleDeleteSnapshot}
-        auditLog={auditLog}
-        onClearAuditLog={() => {
-          setAuditLog([]);
-          saveAuditLog([]);
-        }}
-        onLogAction={logActivity}
-        onLockNow={() => setIsLocked(true)}
-        onWipePat={handleWipePat}
-        onResetToSeed={handleResetToSeed}
-        user={user}
-      />
+      <>
+        <FullScreenSettingsPage
+          activeTab={routeState.tab}
+          onSelectTab={navigateSettingsTab}
+          onBackToAdmin={() => navigateSection('dashboard')}
+          onOpenLiveSite={() => navigatePublicSite('home')}
+          enterprise={enterprise}
+          onSaveEnterprise={handleSaveEnterprise}
+          config={config}
+          baselineConfig={baselineConfig}
+          onUpdateConfig={setConfig}
+          githubSettings={settings}
+          currentSha={currentSha}
+          commitMessage={commitMessage}
+          proxySettings={proxySettings}
+          snapshots={snapshots}
+          onCreateSnapshot={handleCreateSnapshot}
+          onRestoreSnapshot={handleRestoreSnapshot}
+          onDeleteSnapshot={handleDeleteSnapshot}
+          auditLog={auditLog}
+          onClearAuditLog={() => {
+            setAuditLog([]);
+            saveAuditLog([]);
+          }}
+          onLogAction={logActivity}
+          onLockNow={() => setIsLocked(true)}
+          onWipePat={handleWipePat}
+          onResetToSeed={handleResetToSeed}
+          user={user}
+        />
+        <CopyToastBanner />
+      </>
     );
   }
 
@@ -970,6 +1003,11 @@ export default function App() {
             <ShayariManagerSection
               config={config}
               onUpdate={handleUpdateConfig}
+              githubSettings={settings}
+              proxySettings={proxySettings}
+              onAttemptLog={appendAttemptLog}
+              onOpenGitHubSync={() => navigateSection('sync')}
+              onPublishConfigNow={handlePublishConfigNow}
             />
           )}
 
@@ -1004,6 +1042,18 @@ export default function App() {
               liveSyncing={liveSyncing}
               onSyncLiveWebsiteNow={handleSyncLiveWebsiteNow}
               onOpenPublicPage={navigatePublicSite}
+              onOpenPinSettings={() => navigateSettingsTab('pin_lock')}
+            />
+          )}
+
+          {activeSection === 'android-api' && (
+            <AndroidApiSection
+              config={config}
+              githubSettings={settings}
+              proxySettings={proxySettings}
+              user={user}
+              onOpenGitHubSync={() => navigateSection('sync')}
+              onOpenProxySettings={() => navigateSection('proxy')}
             />
           )}
 
@@ -1094,6 +1144,7 @@ export default function App() {
           </div>
         </div>
       )}
+      <CopyToastBanner />
     </div>
   );
 }

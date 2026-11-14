@@ -1,12 +1,12 @@
 import React from 'react';
-import { AlertTriangle, Plus, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, Plus, ShieldCheck, Smartphone } from 'lucide-react';
 import type { ShayariLokConfig } from '../types/config';
 import { PACKAGE_ID } from '../utils/configHelpers';
 
 interface DashboardSectionProps {
   config: ShayariLokConfig;
   onUpdate: (patch: Partial<ShayariLokConfig>) => void;
-  onNavigate: (section: 'shayari' | 'notifications' | 'monetization') => void;
+  onNavigate: (section: 'shayari' | 'notifications' | 'monetization' | 'android-api') => void;
 }
 
 export const DashboardSection: React.FC<DashboardSectionProps> = ({
@@ -88,9 +88,19 @@ export const DashboardSection: React.FC<DashboardSectionProps> = ({
               एंड्रॉइड ऐप का नाम, वर्ज़न कोड और मेंटेनेंस मोड रिमोटली कंट्रोल करें।
             </p>
           </div>
-          <span className="font-mono text-xs text-slate-500">
-            Schema: app_name · latest_version_code · maintenance_mode
-          </span>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <span className="font-mono text-xs text-slate-500">
+              Schema: app_name · latest_version_code · maintenance_mode
+            </span>
+            <button
+              type="button"
+              onClick={() => onNavigate('android-api')}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors"
+            >
+              <Smartphone className="w-3.5 h-3.5" />
+              <span>Android Endpoint & Code</span>
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">

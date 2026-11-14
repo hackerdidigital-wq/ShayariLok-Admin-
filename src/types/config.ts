@@ -11,6 +11,7 @@ export interface ShayariItem {
   category: string;
   text: string;
   author: string;
+  image_url?: string;
 }
 
 export interface ShayariLokConfig {
@@ -55,6 +56,7 @@ export type AdminSection =
   | 'shayari'
   | 'notifications'
   | 'monetization'
+  | 'android-api'
   | 'proxy'
   | 'sync'
   | 'website'

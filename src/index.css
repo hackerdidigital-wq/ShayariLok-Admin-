@@ -22,6 +22,10 @@
   }
 }
 
+.font-editorial-serif {
+  font-family: Georgia, 'Noto Serif Devanagari', 'Times New Roman', serif;
+}
+
 .tabular-nums {
   font-variant-numeric: tabular-nums;
 }

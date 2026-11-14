@@ -6,6 +6,7 @@ import type {
 } from '../types/config';
 import { decodeUtf8Base64, encodeUtf8Base64 } from './base64';
 import { normalizeConfig, serializeConfigJson } from './configHelpers';
+import { buildPublicGitHubImageUrls } from './imageUpload';
 import {
   buildTargetGitHubApiUrl,
   DEFAULT_PROXY_SETTINGS,
@@ -347,4 +348,87 @@ export async function publishGitHubConfig(
     latencyMs,
   };
 }
+
+export interface GitHubImageUploadResult {
+  sha: string;
+  repoPath: string;
+  rawUrl: string;
+  jsdelivrUrl: string;
+  routeLabel: string;
+  latencyMs: number;
+}
+
+export async function uploadImageToGitHub(
+  settings: GitHubSettings,
+  repoImagePath: string,
+  base64Content: string,
+  commitMessage?: string,
+  proxySettings: ProxySettings = DEFAULT_PROXY_SETTINGS,
+  onAttempt?: (log: ProxyAttemptLog) => void
+): Promise<GitHubImageUploadResult> {
+  if (!isGitHubConfigured({ ...settings, path: repoImagePath }, true)) {
+    throw new Error(
+      'GitHub पर फोटो अपलोड करने के लिए Owner, Repository, Branch और Personal Access Token (PAT) आवश्यक हैं।'
+    );
+  }
+
+  const cleanRepoPath = repoImagePath.trim().replace(/^\/+/, '');
+  const targetSettings: GitHubSettings = {
+    ...settings,
+    path: cleanRepoPath,
+  };
+  const targetUrl = buildTargetGitHubApiUrl(targetSettings, false);
+
+  const payload = {
+    message:
+      commitMessage?.trim() ||
+      `Upload Shayari image (${cleanRepoPath}) via Shayari Lok Admin`,
+    content: base64Content,
+    branch: settings.branch.trim() || 'main',
+  };
+
+  const { response, routeLabel, latencyMs } = await executeProxiedRequest({
+    operation: 'PUT',
+    targetUrl,
+    proxy: proxySettings,
+    ghSettings: targetSettings,
+    baseHeaders: {
+      Accept: 'application/vnd.github+json',
+      'Content-Type': 'application/json',
+      'X-GitHub-Api-Version': '2022-11-28',
+    },
+    body: JSON.stringify(payload),
+    onAttempt,
+  });
+
+  if (!response.ok) {
+    const errBody = await response.json().catch(() => ({}));
+    const apiMessage =
+      typeof errBody?.message === 'string'
+        ? errBody.message
+        : response.statusText;
+    if (response.status === 401 || response.status === 403) {
+      throw new Error(
+        `PAT Permission Error (${response.status}): Token में repo/contents write अनुमति नहीं है।`
+      );
+    }
+    throw new Error(`Image Upload Failed (${response.status}): ${apiMessage}`);
+  }
+
+  const result = (await response.json()) as {
+    content?: { sha?: string; path?: string };
+  };
+  const resolvedPath = result.content?.path || cleanRepoPath;
+  const publicUrls = buildPublicGitHubImageUrls(settings, resolvedPath);
+
+  return {
+    sha: result.content?.sha ?? '',
+    repoPath: resolvedPath,
+    rawUrl: publicUrls.rawUrl,
+    jsdelivrUrl: publicUrls.jsdelivrUrl,
+    routeLabel,
+    latencyMs,
+  };
+}
+
 

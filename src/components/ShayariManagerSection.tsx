@@ -1,27 +1,59 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
+  Check,
+  Copy,
   FolderPlus,
+  GitBranch,
+  Image as ImageIcon,
+  Loader2,
   Pencil,
   Plus,
   Search,
   Trash2,
+  UploadCloud,
   X,
 } from 'lucide-react';
-import type { ShayariItem, ShayariLokConfig } from '../types/config';
+import type {
+  GitHubSettings,
+  ProxyAttemptLog,
+  ProxySettings,
+  ShayariItem,
+  ShayariLokConfig,
+} from '../types/config';
+import { copyTextWithFeedback } from '../utils/clipboardToast';
 import {
   ensureAllFirstCategory,
   filterShayaris,
   getNextId,
 } from '../utils/configHelpers';
+import {
+  isGitHubConfigured,
+  uploadImageToGitHub,
+} from '../utils/githubApi';
+import {
+  buildGitHubImageRepoPath,
+  compressImageFileToBase64,
+  type CompressedImageResult,
+} from '../utils/imageUpload';
 
 interface ShayariManagerSectionProps {
   config: ShayariLokConfig;
   onUpdate: (patch: Partial<ShayariLokConfig>) => void;
+  githubSettings: GitHubSettings;
+  proxySettings: ProxySettings;
+  onAttemptLog?: (log: ProxyAttemptLog) => void;
+  onOpenGitHubSync: () => void;
+  onPublishConfigNow?: (nextConfig: ShayariLokConfig) => Promise<void>;
 }
 
 export const ShayariManagerSection: React.FC<ShayariManagerSectionProps> = ({
   config,
   onUpdate,
+  githubSettings,
+  proxySettings,
+  onAttemptLog,
+  onOpenGitHubSync,
+  onPublishConfigNow,
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -40,11 +72,33 @@ export const ShayariManagerSection: React.FC<ShayariManagerSectionProps> = ({
   );
   const [formText, setFormText] = useState<string>('');
   const [formAuthor, setFormAuthor] = useState<string>('');
+  const [formImageUrl, setFormImageUrl] = useState<string>('');
+  const [urlPreference, setUrlPreference] = useState<'jsdelivr' | 'raw'>(
+    'jsdelivr'
+  );
+  const [stagedImage, setStagedImage] = useState<CompressedImageResult | null>(
+    null
+  );
+  const [stagedFileName, setStagedFileName] = useState<string>('');
+  const [uploadingImage, setUploadingImage] = useState<boolean>(false);
+  const [publishingConfig, setPublishingConfig] = useState<boolean>(false);
+  const [imageFeedback, setImageFeedback] = useState<{
+    type: 'success' | 'error' | 'info';
+    text: string;
+  } | null>(null);
   const [formError, setFormError] = useState<string>('');
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
   const nextAutoId = useMemo(
     () => getNextId(config.shayari_list),
     [config.shayari_list]
+  );
+
+  const githubWriteReady = useMemo(
+    () => isGitHubConfigured(githubSettings, true),
+    [githubSettings]
   );
 
   const filteredList = useMemo(
@@ -65,50 +119,168 @@ export const ShayariManagerSection: React.FC<ShayariManagerSectionProps> = ({
     setEditingId(null);
     setFormText('');
     setFormAuthor('');
+    setFormImageUrl('');
+    setStagedImage(null);
+    setStagedFileName('');
+    setImageFeedback(null);
     setFormError('');
     if (!assignableCategories.includes(formCategory)) {
       setFormCategory(assignableCategories[0] ?? 'Love');
     }
   };
 
-  const handleSubmitShayari = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handlePickImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setImageFeedback(null);
+    setFormError('');
+    try {
+      const compressed = await compressImageFileToBase64(file);
+      setStagedImage(compressed);
+      setStagedFileName(file.name);
+      setImageFeedback({
+        type: 'info',
+        text: `फोटो तैयार है (${compressed.width}×${compressed.height}px, ${(compressed.byteSize / 1024).toFixed(1)} KB)। अब "Upload Photo to GitHub" या "Save & Publish" दबाएँ।`,
+      });
+    } catch (err) {
+      const msg =
+        err instanceof Error ? err.message : 'गैलरी से फोटो लोड नहीं हो सकी।';
+      setImageFeedback({ type: 'error', text: msg });
+    }
+  };
+
+  const uploadStagedPhotoNow = async (
+    targetShayariId: number
+  ): Promise<string> => {
+    if (!stagedImage) return formImageUrl.trim();
+    if (!githubWriteReady) {
+      throw new Error(
+        'GitHub पर फोटो अपलोड करने के लिए पहले "GitHub Sync & Auth" में Owner, Repo और PAT सेव करें।'
+      );
+    }
+    setUploadingImage(true);
+    try {
+      const repoPath = buildGitHubImageRepoPath(
+        targetShayariId,
+        stagedImage.ext,
+        Date.now(),
+        githubSettings.path
+      );
+      const uploaded = await uploadImageToGitHub(
+        githubSettings,
+        repoPath,
+        stagedImage.base64,
+        `Upload gallery photo for Shayari #${targetShayariId}`,
+        proxySettings,
+        onAttemptLog
+      );
+      const chosenUrl =
+        urlPreference === 'raw' ? uploaded.rawUrl : uploaded.jsdelivrUrl;
+      setFormImageUrl(chosenUrl);
+      setStagedImage(null);
+      setStagedFileName('');
+      setImageFeedback({
+        type: 'success',
+        text: `फोटो GitHub (${uploaded.repoPath}) पर अपलोड हो गई और URL जुड़ गया!`,
+      });
+      return chosenUrl;
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const handleUploadOnly = async () => {
+    if (!stagedImage) return;
+    setFormError('');
+    try {
+      await uploadStagedPhotoNow(editingId ?? nextAutoId);
+    } catch (err) {
+      const msg =
+        err instanceof Error ? err.message : 'GitHub इमेज अपलोड विफल रहा।';
+      setImageFeedback({ type: 'error', text: msg });
+    }
+  };
+
+  const buildNextShayariList = (resolvedImageUrl: string): ShayariItem[] => {
+    const targetCategory =
+      formCategory.trim() || assignableCategories[0] || 'Love';
+    const targetAuthor = formAuthor.trim() || 'अज्ञात';
+    const cleanedText = formText.replace(/\r\n/g, '\n').trim();
+
+    if (editingId !== null) {
+      return config.shayari_list.map((item) =>
+        item.id === editingId
+          ? {
+              ...item,
+              category: targetCategory,
+              text: cleanedText,
+              author: targetAuthor,
+              image_url: resolvedImageUrl,
+            }
+          : item
+      );
+    }
+
+    const newItem: ShayariItem = {
+      id: nextAutoId,
+      category: targetCategory,
+      text: cleanedText,
+      author: targetAuthor,
+      image_url: resolvedImageUrl,
+    };
+    return [newItem, ...config.shayari_list];
+  };
+
+  const handleSaveShayari = async (publishToGitHubAfterSave: boolean) => {
     const cleanedText = formText.trim();
     if (!cleanedText) {
       setFormError('कृपया शायरी का टेक्स्ट लिखें।');
       return;
     }
 
-    const targetCategory = formCategory.trim() || assignableCategories[0] || 'Love';
-    const targetAuthor = formAuthor.trim() || 'अज्ञात';
+    setFormError('');
+    let resolvedImageUrl = formImageUrl.trim();
 
-    if (editingId !== null) {
-      const updated = config.shayari_list.map((item) =>
-        item.id === editingId
-          ? {
-              ...item,
-              category: targetCategory,
-              text: formText.replace(/\r\n/g, '\n').trim(),
-              author: targetAuthor,
-            }
-          : item
-      );
-      onUpdate({ shayari_list: updated });
-      resetForm();
-      return;
+    if (stagedImage) {
+      if (githubWriteReady) {
+        try {
+          resolvedImageUrl = await uploadStagedPhotoNow(editingId ?? nextAutoId);
+        } catch (err) {
+          const msg =
+            err instanceof Error
+              ? err.message
+              : 'GitHub पर फोटो अपलोड नहीं हो सकी।';
+          setImageFeedback({ type: 'error', text: msg });
+          return;
+        }
+      } else {
+        setImageFeedback({
+          type: 'error',
+          text: 'चुनी गई फोटो GitHub पर अपलोड करने के लिए पहले "GitHub Sync & Auth" में Repo व PAT जोड़ें (या नीचे सीधे Image URL पेस्ट करें)।',
+        });
+        return;
+      }
     }
 
-    const newItem: ShayariItem = {
-      id: nextAutoId,
-      category: targetCategory,
-      text: formText.replace(/\r\n/g, '\n').trim(),
-      author: targetAuthor,
-    };
+    const updatedList = buildNextShayariList(resolvedImageUrl);
+    onUpdate({ shayari_list: updatedList });
 
-    onUpdate({ shayari_list: [newItem, ...config.shayari_list] });
-    setFormText('');
-    setFormAuthor('');
-    setFormError('');
+    if (publishToGitHubAfterSave && onPublishConfigNow) {
+      setPublishingConfig(true);
+      try {
+        await onPublishConfigNow({ ...config, shayari_list: updatedList });
+      } finally {
+        setPublishingConfig(false);
+      }
+    }
+
+    resetForm();
+  };
+
+  const handleSubmitShayari = (e: React.FormEvent) => {
+    e.preventDefault();
+    void handleSaveShayari(false);
   };
 
   const handleStartEdit = (item: ShayariItem) => {
@@ -116,6 +288,10 @@ export const ShayariManagerSection: React.FC<ShayariManagerSectionProps> = ({
     setFormCategory(item.category);
     setFormText(item.text);
     setFormAuthor(item.author);
+    setFormImageUrl(item.image_url || '');
+    setStagedImage(null);
+    setStagedFileName('');
+    setImageFeedback(null);
     setFormError('');
   };
 
@@ -124,6 +300,16 @@ export const ShayariManagerSection: React.FC<ShayariManagerSectionProps> = ({
     onUpdate({ shayari_list: updated });
     if (editingId === id) {
       resetForm();
+    }
+  };
+
+  const handleCopyItem = async (tag: string, text: string, label: string) => {
+    const ok = await copyTextWithFeedback(text, label);
+    if (ok) {
+      setCopiedId(tag);
+      window.setTimeout(() => {
+        setCopiedId((prev) => (prev === tag ? null : prev));
+      }, 2000);
     }
   };
 
@@ -180,17 +366,19 @@ export const ShayariManagerSection: React.FC<ShayariManagerSectionProps> = ({
     }
   };
 
+  const previewImageSrc = stagedImage?.previewDataUrl || formImageUrl.trim();
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
-        {/* Add / Edit Shayari Form */}
+        {/* Add / Edit Shayari + Gallery Image Picker Form */}
         <section className="xl:col-span-5 bg-white border border-slate-200 rounded-xl p-5 sm:p-6 space-y-5">
           <div className="flex items-center justify-between gap-3 pb-3 border-b border-slate-100">
             <div>
               <h2 className="font-display text-base font-semibold text-slate-900">
                 {editingId !== null
                   ? `Edit Shayari #${editingId}`
-                  : 'Add New Shayari'}
+                  : 'Add New Shayari & Gallery Photo'}
               </h2>
               <p className="text-xs text-slate-500 mt-0.5 font-mono tabular-nums">
                 {editingId !== null
@@ -216,7 +404,7 @@ export const ShayariManagerSection: React.FC<ShayariManagerSectionProps> = ({
                 htmlFor="shayari-category-select"
                 className="block text-sm font-medium text-slate-700 mb-1.5"
               >
-                Category
+                Topic / Category
               </label>
               <select
                 id="shayari-category-select"
@@ -278,6 +466,186 @@ export const ShayariManagerSection: React.FC<ShayariManagerSectionProps> = ({
               />
             </div>
 
+            {/* Gallery Image Picker & GitHub Upload Panel */}
+            <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-xs font-semibold text-slate-800">
+                  <ImageIcon className="w-4 h-4 text-indigo-600 shrink-0" />
+                  <span>Gallery Image Picker (config.json · image_url)</span>
+                </div>
+
+                <div className="flex items-center gap-1 text-[11px] bg-white border border-slate-200 rounded-md p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setUrlPreference('jsdelivr')}
+                    className={`px-2 py-0.5 rounded font-medium ${
+                      urlPreference === 'jsdelivr'
+                        ? 'bg-indigo-600 text-white'
+                        : 'text-slate-600'
+                    }`}
+                  >
+                    jsDelivr CDN
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setUrlPreference('raw')}
+                    className={`px-2 py-0.5 rounded font-medium ${
+                      urlPreference === 'raw'
+                        ? 'bg-indigo-600 text-white'
+                        : 'text-slate-600'
+                    }`}
+                  >
+                    GitHub Raw
+                  </button>
+                </div>
+              </div>
+
+              <input
+                ref={imageInputRef}
+                id="shayari-gallery-image-input"
+                type="file"
+                accept="image/*"
+                onChange={(e) => void handlePickImage(e)}
+                className="sr-only"
+              />
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => imageInputRef.current?.click()}
+                  className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-800 bg-white border border-slate-300 rounded-lg hover:bg-slate-100"
+                >
+                  <ImageIcon className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>गैलरी से फोटो चुनें (Image Picker)</span>
+                </button>
+
+                {stagedImage && (
+                  <button
+                    type="button"
+                    disabled={uploadingImage}
+                    onClick={() => void handleUploadOnly()}
+                    className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-white bg-emerald-700 rounded-lg hover:bg-emerald-800 disabled:opacity-60"
+                  >
+                    {uploadingImage ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <UploadCloud className="w-3.5 h-3.5" />
+                    )}
+                    <span>
+                      {uploadingImage
+                        ? 'Uploading...'
+                        : 'Upload Photo to GitHub'}
+                    </span>
+                  </button>
+                )}
+
+                {(stagedImage || formImageUrl) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStagedImage(null);
+                      setStagedFileName('');
+                      setFormImageUrl('');
+                      setImageFeedback(null);
+                    }}
+                    className="px-2.5 py-2 text-xs font-medium text-red-700 hover:bg-red-50 rounded-lg"
+                  >
+                    Remove Photo
+                  </button>
+                )}
+              </div>
+
+              {previewImageSrc && (
+                <div className="flex items-center gap-3 p-2 bg-white border border-slate-200 rounded-lg">
+                  <img
+                    src={previewImageSrc}
+                    alt="Selected Shayari preview"
+                    className="w-16 h-16 rounded-md object-cover border border-slate-200 shrink-0"
+                  />
+                  <div className="min-w-0 flex-1 space-y-0.5">
+                    <div className="text-xs font-semibold text-slate-800 truncate">
+                      {stagedFileName || 'Attached Photo URL'}
+                    </div>
+                    <div className="text-[11px] font-mono text-slate-500 truncate">
+                      {stagedImage
+                        ? `Ready (${stagedImage.width}×${stagedImage.height}px · ${(stagedImage.byteSize / 1024).toFixed(1)} KB)`
+                        : formImageUrl}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label
+                  htmlFor="shayari-image-url-input"
+                  className="block text-[11px] font-medium text-slate-600 mb-1"
+                >
+                  Image URL (Auto-filled after GitHub upload, or paste direct HTTPS URL)
+                </label>
+                <div className="flex gap-1.5">
+                  <input
+                    id="shayari-image-url-input"
+                    type="url"
+                    value={formImageUrl}
+                    onChange={(e) => setFormImageUrl(e.target.value)}
+                    placeholder="https://cdn.jsdelivr.net/gh/owner/repo@main/images/..."
+                    className="flex-1 min-w-0 px-3 py-2 text-xs font-mono bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500"
+                  />
+                  {formImageUrl.trim() && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void handleCopyItem(
+                          'form-img-url',
+                          formImageUrl.trim(),
+                          'Image URL'
+                        )
+                      }
+                      aria-label="Copy image URL"
+                      className="px-2.5 py-2 text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 shrink-0"
+                    >
+                      {copiedId === 'form-img-url' ? (
+                        <Check className="w-3.5 h-3.5 text-emerald-700" />
+                      ) : (
+                        <Copy className="w-3.5 h-3.5" />
+                      )}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {!githubWriteReady && (
+                <div className="flex items-center justify-between gap-2 text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2">
+                  <span>
+                    फोटो सीधे GitHub पर अपलोड करने के लिए Repo व PAT कनेक्ट करें।
+                  </span>
+                  <button
+                    type="button"
+                    onClick={onOpenGitHubSync}
+                    className="flex items-center gap-1 font-semibold underline whitespace-nowrap shrink-0"
+                  >
+                    <GitBranch className="w-3 h-3" />
+                    <span>Connect</span>
+                  </button>
+                </div>
+              )}
+
+              {imageFeedback && (
+                <div
+                  role="status"
+                  className={`text-xs font-medium px-3 py-2 rounded-lg border ${
+                    imageFeedback.type === 'error'
+                      ? 'bg-red-50 border-red-200 text-red-700'
+                      : imageFeedback.type === 'success'
+                        ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                        : 'bg-indigo-50 border-indigo-200 text-indigo-800'
+                  }`}
+                >
+                  {imageFeedback.text}
+                </div>
+              )}
+            </div>
+
             {formError && (
               <div
                 role="alert"
@@ -287,15 +655,38 @@ export const ShayariManagerSection: React.FC<ShayariManagerSectionProps> = ({
               </div>
             )}
 
-            <button
-              type="submit"
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              <span>
-                {editingId !== null ? 'Update Shayari' : 'Add Shayari to List'}
-              </span>
-            </button>
+            <div className="flex flex-col sm:flex-row gap-2.5">
+              <button
+                type="submit"
+                disabled={uploadingImage || publishingConfig}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-60 transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                <span>
+                  {editingId !== null
+                    ? 'Update Shayari'
+                    : 'Add Shayari to List'}
+                </span>
+              </button>
+
+              {githubWriteReady && onPublishConfigNow && (
+                <button
+                  type="button"
+                  disabled={uploadingImage || publishingConfig}
+                  onClick={() => void handleSaveShayari(true)}
+                  className="flex items-center justify-center gap-1.5 px-4 py-2.5 text-xs font-semibold text-white bg-emerald-700 rounded-lg hover:bg-emerald-800 disabled:opacity-60 transition-colors whitespace-nowrap"
+                >
+                  {publishingConfig ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <UploadCloud className="w-3.5 h-3.5" />
+                  )}
+                  <span>
+                    {publishingConfig ? 'Publishing...' : 'Save & Publish JSON'}
+                  </span>
+                </button>
+              )}
+            </div>
           </form>
 
           {/* Category Manager Toggle */}
@@ -454,52 +845,121 @@ export const ShayariManagerSection: React.FC<ShayariManagerSectionProps> = ({
             </div>
           ) : (
             <div className="divide-y divide-slate-200 border border-slate-200 rounded-xl overflow-hidden">
-              {filteredList.map((item) => (
-                <article
-                  key={item.id}
-                  className={`p-4 transition-colors ${
-                    editingId === item.id ? 'bg-indigo-50/50' : 'bg-white hover:bg-slate-50/70'
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0 flex-1 space-y-2">
-                      <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                        <span className="font-semibold text-indigo-700">
-                          {item.category}
-                        </span>
-                        <span aria-hidden="true">·</span>
-                        <span className="font-mono tabular-nums">
-                          ID #{item.id}
-                        </span>
-                        <span aria-hidden="true">·</span>
-                        <span>{item.author}</span>
-                      </div>
-                      <p className="text-sm sm:text-[15px] leading-relaxed text-slate-900 whitespace-pre-line">
-                        {item.text}
-                      </p>
-                    </div>
+              {filteredList.map((item) => {
+                const copyTextKey = `copy-sh-${item.id}`;
+                const copyImgKey = `copy-img-${item.id}`;
+                return (
+                  <article
+                    key={item.id}
+                    className={`p-4 transition-colors ${
+                      editingId === item.id
+                        ? 'bg-indigo-50/50'
+                        : 'bg-white hover:bg-slate-50/70'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0 flex-1 space-y-2">
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                          <span className="font-semibold text-indigo-700">
+                            {item.category}
+                          </span>
+                          <span aria-hidden="true">·</span>
+                          <span className="font-mono tabular-nums">
+                            ID #{item.id}
+                          </span>
+                          <span aria-hidden="true">·</span>
+                          <span>{item.author}</span>
+                          {item.image_url && (
+                            <>
+                              <span aria-hidden="true">·</span>
+                              <span className="font-mono text-[11px] text-emerald-700 font-semibold">
+                                Photo Attached
+                              </span>
+                            </>
+                          )}
+                        </div>
+                        <p className="text-sm sm:text-[15px] leading-relaxed text-slate-900 whitespace-pre-line">
+                          {item.text}
+                        </p>
 
-                    <div className="flex items-center gap-1 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => handleStartEdit(item)}
-                        aria-label={`Edit Shayari #${item.id}`}
-                        className="p-2 text-slate-500 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors"
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteShayari(item.id)}
-                        aria-label={`Delete Shayari #${item.id}`}
-                        className="p-2 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                        {item.image_url && (
+                          <div className="pt-1 flex items-center gap-3">
+                            <img
+                              src={item.image_url}
+                              alt={`Shayari #${item.id} photo`}
+                              referrerPolicy="no-referrer"
+                              className="w-16 h-12 rounded-md object-cover border border-slate-200 bg-slate-100 shrink-0"
+                            />
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void handleCopyItem(
+                                  copyImgKey,
+                                  item.image_url || '',
+                                  `Shayari #${item.id} Image URL`
+                                )
+                              }
+                              className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-md hover:bg-indigo-100"
+                            >
+                              {copiedId === copyImgKey ? (
+                                <>
+                                  <Check className="w-3 h-3 text-emerald-700" />
+                                  <span className="text-emerald-700">
+                                    Copied Successfully!
+                                  </span>
+                                </>
+                              ) : (
+                                <>
+                                  <Copy className="w-3 h-3" />
+                                  <span>Copy Image URL</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void handleCopyItem(
+                              copyTextKey,
+                              `${item.text}\n\n— ${item.author}`,
+                              `Shayari #${item.id}`
+                            )
+                          }
+                          aria-label={`Copy Shayari #${item.id}`}
+                          className="p-2 text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors"
+                          title="Copy Shayari"
+                        >
+                          {copiedId === copyTextKey ? (
+                            <Check className="w-4 h-4 text-emerald-700" />
+                          ) : (
+                            <Copy className="w-4 h-4" />
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleStartEdit(item)}
+                          aria-label={`Edit Shayari #${item.id}`}
+                          className="p-2 text-slate-500 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteShayari(item.id)}
+                          aria-label={`Delete Shayari #${item.id}`}
+                          className="p-2 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                </article>
-              ))}
+                  </article>
+                );
+              })}
             </div>
           )}
         </section>

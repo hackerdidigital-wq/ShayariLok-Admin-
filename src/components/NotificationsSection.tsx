@@ -2,7 +2,9 @@ import React, { useMemo, useState } from 'react';
 import type { User } from 'firebase/auth';
 import {
   Bell,
+  Check,
   CloudUpload,
+  Copy,
   ExternalLink,
   Image as ImageIcon,
   Megaphone,
@@ -13,6 +15,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
+import { copyTextWithFeedback } from '../utils/clipboardToast';
 import type {
   NotificationItem,
   PhotoShayariCard,
@@ -84,6 +87,7 @@ export const NotificationsSection: React.FC<NotificationsSectionProps> = ({
   const [badge, setBadge] = useState('Shayari Alert');
   const [timeLabel, setTimeLabel] = useState('Today');
   const [error, setError] = useState('');
+  const [copiedUrl, setCopiedUrl] = useState(false);
 
   // Suvichar Quick Form
   const [suvText, setSuvText] = useState('');
@@ -275,6 +279,31 @@ export const NotificationsSection: React.FC<NotificationsSectionProps> = ({
                 </span>
               </button>
             )}
+
+            <button
+              type="button"
+              onClick={() => {
+                void copyTextWithFeedback(standaloneWebsiteUrl, 'Website URL').then((ok) => {
+                  if (ok) {
+                    setCopiedUrl(true);
+                    window.setTimeout(() => setCopiedUrl(false), 2000);
+                  }
+                });
+              }}
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200"
+            >
+              {copiedUrl ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-700" />
+                  <span className="text-emerald-700 font-semibold">Copied Successfully!</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>Copy Website URL</span>
+                </>
+              )}
+            </button>
 
             <a
               href={standaloneWebsiteUrl}

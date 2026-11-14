@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Check, Copy, ExternalLink, Globe, Shield, Smartphone } from 'lucide-react';
 import type { ShayariLokConfig } from '../types/config';
 import { isLegacyPlaceholderPolicyUrl } from '../utils/siteRoutes';
+import { copyTextWithFeedback } from '../utils/clipboardToast';
 
 interface MonetizationSectionProps {
   config: ShayariLokConfig;
@@ -31,12 +32,10 @@ export const MonetizationSection: React.FC<MonetizationSectionProps> = ({
   const handleCopyHostedPolicy = async () => {
     const target = hostedPrivacyUrl || config.privacy_policy_url;
     if (!target) return;
-    try {
-      await navigator.clipboard.writeText(target);
+    const ok = await copyTextWithFeedback(target, 'Privacy Policy URL');
+    if (ok) {
       setCopiedPolicy(true);
-      window.setTimeout(() => setCopiedPolicy(false), 1800);
-    } catch {
-      // Ignore clipboard failure
+      window.setTimeout(() => setCopiedPolicy(false), 2000);
     }
   };
 
@@ -250,7 +249,7 @@ export const MonetizationSection: React.FC<MonetizationSectionProps> = ({
                   {copiedPolicy ? (
                     <>
                       <Check className="w-3.5 h-3.5 text-emerald-700" />
-                      <span className="text-emerald-700">Copied</span>
+                      <span className="text-emerald-700 font-semibold">Copied Successfully!</span>
                     </>
                   ) : (
                     <>

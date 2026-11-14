@@ -22,6 +22,9 @@ import {
   type PublicSitePageId,
 } from '../utils/siteRoutes';
 
+import { Lock } from 'lucide-react';
+import { copyTextWithFeedback } from '../utils/clipboardToast';
+
 interface WebsiteHubSectionProps {
   config: ShayariLokConfig;
   websiteContent: WebsiteContentSettings;
@@ -30,6 +33,7 @@ interface WebsiteHubSectionProps {
   liveSyncing: boolean;
   onSyncLiveWebsiteNow: () => Promise<void>;
   onOpenPublicPage: (page: PublicSitePageId) => void;
+  onOpenPinSettings?: () => void;
 }
 
 const LIVE_SITES: Array<{
@@ -89,6 +93,7 @@ export const WebsiteHubSection: React.FC<WebsiteHubSectionProps> = ({
   liveSyncing,
   onSyncLiveWebsiteNow,
   onOpenPublicPage,
+  onOpenPinSettings,
 }) => {
   const [copiedPage, setCopiedPage] = useState<PublicSitePageId | null>(null);
   const [includeGitHubQuery, setIncludeGitHubQuery] = useState(true);
@@ -122,14 +127,15 @@ export const WebsiteHubSection: React.FC<WebsiteHubSectionProps> = ({
     page: PublicSitePageId,
     entryHtml: 'website.html' | 'privacy.html'
   ) => {
-    try {
-      await navigator.clipboard.writeText(getShareUrl(page, entryHtml));
+    const ok = await copyTextWithFeedback(
+      getShareUrl(page, entryHtml),
+      entryHtml === 'privacy.html' ? 'Privacy Policy URL' : 'Website URL'
+    );
+    if (ok) {
       setCopiedPage(page);
       window.setTimeout(() => {
         setCopiedPage((prev) => (prev === page ? null : prev));
-      }, 1800);
-    } catch {
-      // Ignore if clipboard API restricted
+      }, 2000);
     }
   };
 
@@ -270,7 +276,7 @@ export const WebsiteHubSection: React.FC<WebsiteHubSectionProps> = ({
                     {isCopied ? (
                       <>
                         <Check className="w-3.5 h-3.5 text-emerald-700" />
-                        <span className="text-emerald-700">Copied</span>
+                        <span className="text-emerald-700 font-semibold">Copied Successfully!</span>
                       </>
                     ) : (
                       <>
@@ -302,6 +308,32 @@ export const WebsiteHubSection: React.FC<WebsiteHubSectionProps> = ({
             </div>
           );
         })}
+      </div>
+
+      {/* Strict Admin vs Public Website Isolation Card */}
+      <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <ShieldCheck className="w-5 h-5 text-emerald-700 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <h3 className="font-display text-sm font-bold text-slate-900">
+              100% Isolated Public Websites — Admin Panel Completely Hidden
+            </h3>
+            <p className="text-xs text-slate-700 leading-relaxed">
+              यूज़र को शेयर किए जाने वाले <code className="font-mono">website.html</code> और{' '}
+              <code className="font-mono">privacy.html</code> अलग एंट्री बंडल पर चलते हैं। उनमें एडमिन पैनल का कोई लिंक, रूट या कोड शामिल नहीं होता—इसलिए कोई भी विज़िटर आपके एडमिन तक नहीं पहुँच सकता।
+            </p>
+          </div>
+        </div>
+        {onOpenPinSettings && (
+          <button
+            type="button"
+            onClick={onOpenPinSettings}
+            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-emerald-900 bg-white border border-emerald-300 rounded-lg hover:bg-emerald-50 whitespace-nowrap shrink-0 self-start sm:self-center"
+          >
+            <Lock className="w-3.5 h-3.5" />
+            <span>Admin PIN Lock</span>
+          </button>
+        )}
       </div>
     </div>
   );

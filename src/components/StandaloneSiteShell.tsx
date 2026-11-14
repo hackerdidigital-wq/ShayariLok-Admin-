@@ -14,6 +14,7 @@ import {
   loadWebsiteContent,
   subscribeLocalLiveWebsiteState,
 } from '../utils/websiteContent';
+import { CopyToastBanner } from './CopyToastBanner';
 import { PublicWebsiteView } from './PublicWebsiteView';
 
 interface StandaloneSiteShellProps {
@@ -175,18 +176,21 @@ export const StandaloneSiteShell: React.FC<StandaloneSiteShellProps> = ({
   );
 
   return (
-    <PublicWebsiteView
-      page={mode === 'privacy' ? 'privacy' : page}
-      onNavigatePage={handleNavigatePage}
-      config={config}
-      websiteContent={websiteContent}
-      organizationName={organizationName}
-      supportEmail={supportEmail}
-      publicSyncState={syncState}
-      publicSyncMessage={syncMessage}
-      standalonePrivacyHref={standalonePrivacyHref}
-      standaloneWebsiteHref={standaloneWebsiteHref}
-      isPrivacyOnlyMode={mode === 'privacy'}
-    />
+    <>
+      <PublicWebsiteView
+        page={mode === 'privacy' ? 'privacy' : page}
+        onNavigatePage={handleNavigatePage}
+        config={config}
+        websiteContent={websiteContent}
+        organizationName={organizationName}
+        supportEmail={supportEmail}
+        publicSyncState={syncState}
+        publicSyncMessage={syncMessage}
+        standalonePrivacyHref={standalonePrivacyHref}
+        standaloneWebsiteHref={standaloneWebsiteHref}
+        isPrivacyOnlyMode={mode === 'privacy'}
+      />
+      <CopyToastBanner />
+    </>
   );
 };

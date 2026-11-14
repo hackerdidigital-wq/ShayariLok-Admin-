@@ -37,6 +37,7 @@ const SECTION_TITLES: Record<AdminSection, string> = {
   notifications: 'Notifications & Announcements',
   monetization: 'Monetization & Social Links',
   website: 'Live Public Websites',
+  'android-api': 'Android App API & Code',
   proxy: 'Proxy & Mirror Routing',
   sync: 'GitHub Sync & Cloud Auth',
   settings: 'Enterprise Settings',

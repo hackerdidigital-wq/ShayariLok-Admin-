@@ -57,13 +57,27 @@ test('normalizeConfig safely coerces partial or malformed JSON payloads', () => 
     latest_version_code: '4',
     maintenance_mode: 1,
     categories: ['Motivation', 'All'],
-    shayari_list: [{ id: 10, category: 'Motivation', text: 'Line 1\nLine 2', author: 'Test' }],
+    shayari_list: [
+      { id: 10, category: 'Motivation', text: 'Line 1\nLine 2', author: 'Test' },
+      {
+        id: 11,
+        category: 'Love',
+        text: 'With Photo',
+        author: 'Rahi',
+        image_url: 'https://cdn.jsdelivr.net/gh/u/r@main/images/shayari-11.jpg',
+      },
+    ],
   });
   assert.equal(normalized.app_name, 'Shayari Lok Pro');
   assert.equal(normalized.latest_version_code, 4);
   assert.equal(normalized.maintenance_mode, true);
   assert.deepEqual(normalized.categories, ['All', 'Motivation']);
   assert.equal(normalized.shayari_list[0].id, 10);
+  assert.equal(normalized.shayari_list[0].image_url, '');
+  assert.equal(
+    normalized.shayari_list[1].image_url,
+    'https://cdn.jsdelivr.net/gh/u/r@main/images/shayari-11.jpg'
+  );
 });
 
 test('hasUnsavedChanges detects modifications accurately', () => {
