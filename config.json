@@ -29,6 +29,12 @@
   ],
   "shayari_list": [
     {
+      "id": 7,
+      "category": "Love",
+      "text": "Tanisha love 123",
+      "author": "Tanisha 123"
+    },
+    {
       "id": 6,
       "category": "Love",
       "text": "I love you tanisha",
