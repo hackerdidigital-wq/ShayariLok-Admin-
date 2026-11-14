@@ -18,6 +18,13 @@
   ],
   "shayari_list": [
     {
+      "id": 4,
+      "category": "General",
+      "text": "Khana",
+      "author": "दिल की खामोशी",
+      "image_url": ""
+    },
+    {
       "id": 3,
       "category": "General",
       "text": "Rola",
