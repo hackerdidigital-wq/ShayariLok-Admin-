@@ -43,6 +43,12 @@
   ],
   "shayari_list": [
     {
+      "id": 6,
+      "category": "Love",
+      "text": "I love you tanisha",
+      "author": "Tan8sha"
+    },
+    {
       "id": 1,
       "category": "Love",
       "text": "तेरी ख़ामोशी भी मुझसे कुछ कहती है,\nहर धड़कन में तेरी ही याद रहती है।",
