@@ -18,6 +18,13 @@
   ],
   "shayari_list": [
     {
+      "id": 3,
+      "category": "General",
+      "text": "Rola",
+      "author": "Hacker",
+      "image_url": ""
+    },
+    {
       "id": 2,
       "category": "General",
       "text": "Geme",
