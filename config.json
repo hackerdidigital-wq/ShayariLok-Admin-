@@ -27,48 +27,5 @@
     "Motivation",
     "Sad"
   ],
-  "shayari_list": [
-    {
-      "id": 7,
-      "category": "Love",
-      "text": "Tanisha love 123",
-      "author": "Tanisha 123"
-    },
-    {
-      "id": 6,
-      "category": "Love",
-      "text": "I love you tanisha",
-      "author": "Tan8sha"
-    },
-    {
-      "id": 1,
-      "category": "Love",
-      "text": "तेरी ख़ामोशी भी मुझसे कुछ कहती है,\nहर धड़कन में तेरी ही याद रहती है।",
-      "author": "अज्ञात"
-    },
-    {
-      "id": 2,
-      "category": "Attitude",
-      "text": "हम वो नहीं जो वक़्त के साथ बदल जाएं,\nहम वो हैं जो वक़्त का रुख मोड़ कर दिखाएं।",
-      "author": "CyberKing"
-    },
-    {
-      "id": 3,
-      "category": "Motivation",
-      "text": "मंज़िलें उन्हीं को मिलती हैं जिनके सपनों में जान होती है,\nपंखों से कुछ नहीं होता, हौसलों से उड़ान होती है।",
-      "author": "रफ़्तार"
-    },
-    {
-      "id": 4,
-      "category": "Sad",
-      "text": "कुछ दर्द ऐसे भी होते हैं जो बयाँ नहीं होते,\nबस आँखों की नमी में चुपचाप बह जाते हैं।",
-      "author": "राही"
-    },
-    {
-      "id": 5,
-      "category": "Love",
-      "text": "Kabhi lafzon mein na dhoondhna wafa meri,\nKhamoshiyon mein bhi sirf tera hi naam likha hai.",
-      "author": "Aarav"
-    }
-  ]
+  "shayari_list": []
 }
