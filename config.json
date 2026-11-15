@@ -16,27 +16,5 @@
     "All",
     "General"
   ],
-  "shayari_list": [
-    {
-      "id": 5,
-      "category": "General",
-      "text": "Fin",
-      "author": "दिल की खामोशी",
-      "image_url": ""
-    },
-    {
-      "id": 4,
-      "category": "General",
-      "text": "Khana",
-      "author": "दिल की खामोशी",
-      "image_url": ""
-    },
-    {
-      "id": 1,
-      "category": "General",
-      "text": "The hm vo",
-      "author": "To",
-      "image_url": ""
-    }
-  ]
+  "shayari_list": []
 }
