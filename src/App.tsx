@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   onAuthStateChanged,
   signInWithPopup,
@@ -6,24 +6,21 @@ import {
   type User,
 } from 'firebase/auth';
 import { AlertCircle, CheckCircle2, X } from 'lucide-react';
+import { AdminAuthGate } from './components/AdminAuthGate';
 import { AdminLockScreen } from './components/AdminLockScreen';
-import { AndroidApiSection } from './components/AndroidApiSection';
 import { CopyToastBanner } from './components/CopyToastBanner';
 import { DashboardSection } from './components/DashboardSection';
-import { FullScreenSettingsPage } from './components/FullScreenSettingsPage';
 import { GitHubSyncSection } from './components/GitHubSyncSection';
 import { JsonPreviewModal } from './components/JsonPreviewModal';
 import { MonetizationSection } from './components/MonetizationSection';
 import { NotificationsSection } from './components/NotificationsSection';
 import { ProxySection } from './components/ProxySection';
-import { PublicWebsiteView } from './components/PublicWebsiteView';
 import { ShayariManagerSection } from './components/ShayariManagerSection';
 import { Sidebar } from './components/Sidebar';
-import { SocialMonitorSection } from './components/SocialMonitorSection';
 import { TopBar } from './components/TopBar';
-import { WebsiteHubSection } from './components/WebsiteHubSection';
 import { auth, firebaseInitError, googleProvider } from './firebase';
 import {
+  checkIsCloudAllowlistedAdmin,
   ensureUserProfile,
   loadCloudDraft,
   loadCloudProxyProfile,
@@ -32,18 +29,28 @@ import {
   saveCloudDraft,
   saveCloudProxyProfile,
   saveCloudRepoSettings,
+  subscribePublicWebsiteState,
   subscribeUserWorkspace,
 } from './services/firestoreSync';
+import { subscribeSocialMonitorData } from './services/socialFirestore';
 import type {
   AdminSection,
+  AppUserProfile,
+  ChatRoomItem,
   GitHubSettings,
   ProxyAttemptLog,
   ProxySettings,
   PublishLogEntry,
   ShayariLokConfig,
+  SocialEdgeItem,
   SyncStatus,
   WebsiteContentSettings,
 } from './types/config';
+import {
+  hasSandboxQueryFlag,
+  isAuthorizedAdminEmail,
+  isLocalPreviewHost,
+} from './utils/adminAuth';
 import {
   DEFAULT_CONFIG,
   hasUnsavedChanges,
@@ -52,13 +59,22 @@ import {
   fetchGitHubConfig,
   isGitHubConfigured,
   loadGitHubSettings,
-  loadLocalDraft,
   loadSavedSha,
   publishGitHubConfig,
   saveGitHubSettings,
-  saveLocalDraft,
   saveLocalSha,
 } from './utils/githubApi';
+import {
+  createManagedAppProfile,
+  loadActiveAppId,
+  loadAppDraft,
+  loadManagedApps,
+  resolveFirestoreSiteId,
+  saveActiveAppId,
+  saveAppDraft,
+  saveManagedApps,
+  type ManagedAppProfile,
+} from './utils/multiAppRegistry';
 import {
   loadProxySettings,
   normalizeProxySettings,
@@ -90,10 +106,41 @@ import {
   type PublicSitePageId,
 } from './utils/siteRoutes';
 import {
+  DEMO_APP_USERS,
+  DEMO_CHAT_ROOMS,
+  DEMO_SOCIAL_EDGES,
+} from './utils/socialMonitor';
+import {
   broadcastLiveWebsiteState,
   loadWebsiteContent,
   saveWebsiteContent,
 } from './utils/websiteContent';
+
+const FullScreenSettingsPage = lazy(() =>
+  import('./components/FullScreenSettingsPage').then((m) => ({
+    default: m.FullScreenSettingsPage,
+  }))
+);
+const PublicWebsiteView = lazy(() =>
+  import('./components/PublicWebsiteView').then((m) => ({
+    default: m.PublicWebsiteView,
+  }))
+);
+const AndroidApiSection = lazy(() =>
+  import('./components/AndroidApiSection').then((m) => ({
+    default: m.AndroidApiSection,
+  }))
+);
+const SocialMonitorSection = lazy(() =>
+  import('./components/SocialMonitorSection').then((m) => ({
+    default: m.SocialMonitorSection,
+  }))
+);
+const WebsiteHubSection = lazy(() =>
+  import('./components/WebsiteHubSection').then((m) => ({
+    default: m.WebsiteHubSection,
+  }))
+);
 
 function getCurrentRoute(): AppRouteState {
   if (typeof window === 'undefined') {
@@ -109,9 +156,29 @@ export default function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
 
-  const [settings, setSettings] = useState<GitHubSettings>(() =>
-    loadGitHubSettings()
+  const [managedApps, setManagedApps] = useState<ManagedAppProfile[]>(() =>
+    loadManagedApps()
   );
+  const [activeAppId, setActiveAppId] = useState<string>(() =>
+    loadActiveAppId(loadManagedApps())
+  );
+
+  const activeApp = useMemo(
+    () => managedApps.find((app) => app.id === activeAppId) ?? managedApps[0],
+    [managedApps, activeAppId]
+  );
+
+  const [settings, setSettings] = useState<GitHubSettings>(() => {
+    const loaded = loadGitHubSettings();
+    const initialApps = loadManagedApps();
+    const initialApp =
+      initialApps.find((a) => a.id === loadActiveAppId(initialApps)) ??
+      initialApps[0];
+    return {
+      ...loaded,
+      path: loaded.path || initialApp.githubPath,
+    };
+  });
   const [proxySettings, setProxySettings] = useState<ProxySettings>(() =>
     loadProxySettings()
   );
@@ -119,11 +186,11 @@ export default function App() {
   const [currentSha, setCurrentSha] = useState<string>(() => loadSavedSha());
   const [commitMessage, setCommitMessage] = useState<string>('');
 
-  const [baselineConfig, setBaselineConfig] = useState<ShayariLokConfig>(() => ({
-    ...DEFAULT_CONFIG,
-  }));
-  const [config, setConfig] = useState<ShayariLokConfig>(
-    () => loadLocalDraft() ?? { ...DEFAULT_CONFIG }
+  const [baselineConfig, setBaselineConfig] = useState<ShayariLokConfig>(() =>
+    loadAppDraft(activeApp)
+  );
+  const [config, setConfig] = useState<ShayariLokConfig>(() =>
+    loadAppDraft(activeApp)
   );
 
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
@@ -135,6 +202,12 @@ export default function App() {
 
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [cloudAllowlistedAdmin, setCloudAllowlistedAdmin] = useState(false);
+  const [authError, setAuthError] = useState<unknown>(null);
+  const [localSandboxUnlocked, setLocalSandboxUnlocked] = useState<boolean>(() =>
+    typeof window !== 'undefined' &&
+    hasSandboxQueryFlag(window.location.search, window.location.hash)
+  );
   const [cloudBusy, setCloudBusy] = useState(false);
   const [publishLogs, setPublishLogs] = useState<PublishLogEntry[]>([]);
 
@@ -145,6 +218,16 @@ export default function App() {
     loadWebsiteContent()
   );
   const [liveSyncing, setLiveSyncing] = useState(false);
+  const [realtimeStatus, setRealtimeStatus] = useState<
+    'live' | 'syncing' | 'local'
+  >('local');
+  const [lastSyncLatencyMs, setLastSyncLatencyMs] = useState<number | null>(
+    null
+  );
+  const [cloudAppUsers, setCloudAppUsers] = useState<AppUserProfile[]>([]);
+  const [cloudSocialEdges, setCloudSocialEdges] = useState<SocialEdgeItem[]>([]);
+  const [cloudChatRooms, setCloudChatRooms] = useState<ChatRoomItem[]>([]);
+
   const [snapshots, setSnapshots] = useState<ConfigSnapshot[]>(() =>
     loadSnapshots()
   );
@@ -161,6 +244,32 @@ export default function App() {
   const [publicSyncMessage, setPublicSyncMessage] = useState('');
 
   const initialAutoSyncedRef = useRef(false);
+  const configRef = useRef(config);
+  configRef.current = config;
+
+  const canEnterLocalSandbox = useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    return (
+      isLocalPreviewHost(window.location.hostname) ||
+      hasSandboxQueryFlag(window.location.search, window.location.hash)
+    );
+  }, []);
+
+  const isAuthorizedAdmin = useMemo(() => {
+    if (!user) return false;
+    return (
+      isAuthorizedAdminEmail(user.email, user.emailVerified) ||
+      cloudAllowlistedAdmin
+    );
+  }, [user, cloudAllowlistedAdmin]);
+
+  const canEnterAdmin =
+    isAuthorizedAdmin || (localSandboxUnlocked && canEnterLocalSandbox);
+
+  const activeSiteId = useMemo(() => {
+    if (!user || !isAuthorizedAdmin) return '';
+    return resolveFirestoreSiteId(user.uid, activeApp.id);
+  }, [user, isAuthorizedAdmin, activeApp.id]);
 
   const activeSection: AdminSection =
     routeState.view === 'admin'
@@ -260,31 +369,56 @@ export default function App() {
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
 
-  // Persist local draft & broadcast live updates in real time to open website/privacy tabs
+  // Persist per-app local draft & broadcast live updates in real time
   useEffect(() => {
     if (enterprise.autoSaveDraft) {
-      saveLocalDraft(config);
+      saveAppDraft(activeApp.id, config);
     }
     saveWebsiteContent(websiteContent);
     broadcastLiveWebsiteState(config, websiteContent, enterprise);
-  }, [config, websiteContent, enterprise]);
+  }, [activeApp.id, config, websiteContent, enterprise]);
 
-  // Debounced cross-device Firestore real-time mirror when signed in
+  // Fast 120ms debounced Firestore real-time mirror when signed in as verified admin
   useEffect(() => {
-    if (!user) return;
+    if (!user || !isAuthorizedAdmin || !activeSiteId) {
+      setRealtimeStatus('local');
+      setLastSyncLatencyMs(null);
+      return;
+    }
+    setRealtimeStatus('syncing');
     const timer = window.setTimeout(() => {
+      const startedAt =
+        typeof performance !== 'undefined' ? performance.now() : Date.now();
       publishPublicWebsiteState(
         user.uid,
         config,
         websiteContent,
         enterprise.organizationName,
-        enterprise.supportEmail
-      ).catch(() => {
-        // Non-fatal background live sync; explicit publish action surfaces errors
-      });
-    }, 900);
+        enterprise.supportEmail,
+        activeSiteId
+      )
+        .then(() => {
+          const elapsed =
+            typeof performance !== 'undefined'
+              ? Math.round(performance.now() - startedAt)
+              : Math.round(Date.now() - startedAt);
+          setLastSyncLatencyMs(Math.max(12, elapsed));
+          setRealtimeStatus('live');
+        })
+        .catch(() => {
+          setRealtimeStatus('local');
+        });
+    }, 120);
     return () => window.clearTimeout(timer);
-  }, [user, config, websiteContent, enterprise.organizationName, enterprise.supportEmail]);
+  }, [
+    user,
+    isAuthorizedAdmin,
+    activeSiteId,
+    config,
+    websiteContent,
+    enterprise.organizationName,
+    enterprise.supportEmail,
+  ]);
 
   // Apply workspace density & Devanagari typography attributes
   useEffect(() => {
@@ -313,7 +447,7 @@ export default function App() {
     };
   }, [enterprise.pinHash, enterprise.autoLockMinutes, isLocked]);
 
-  // Firebase Auth & Firestore Workspace Listener
+  // Firebase Auth, Admin Allowlist & Firestore Workspace Listeners
   useEffect(() => {
     if (!auth) {
       setAuthLoading(false);
@@ -321,22 +455,47 @@ export default function App() {
     }
 
     let unsubWorkspace: (() => void) | null = null;
+    let unsubSocial: (() => void) | null = null;
 
     const unsubAuth = onAuthStateChanged(auth, async (currentUser) => {
       if (unsubWorkspace) {
         unsubWorkspace();
         unsubWorkspace = null;
       }
+      if (unsubSocial) {
+        unsubSocial();
+        unsubSocial = null;
+      }
 
       setUser(currentUser);
-      setAuthLoading(false);
 
       if (!currentUser) {
+        setCloudAllowlistedAdmin(false);
         setPublishLogs([]);
+        setCloudAppUsers([]);
+        setCloudSocialEdges([]);
+        setCloudChatRooms([]);
+        setAuthLoading(false);
         return;
       }
 
       try {
+        let allowlisted = false;
+        if (!isAuthorizedAdminEmail(currentUser.email, currentUser.emailVerified)) {
+          allowlisted = await checkIsCloudAllowlistedAdmin(currentUser.uid);
+        }
+        setCloudAllowlistedAdmin(allowlisted);
+
+        const authorized =
+          isAuthorizedAdminEmail(currentUser.email, currentUser.emailVerified) ||
+          allowlisted;
+
+        if (!authorized) {
+          setAuthLoading(false);
+          return;
+        }
+
+        setAuthError(null);
         await ensureUserProfile(currentUser);
         unsubWorkspace = subscribeUserWorkspace(currentUser.uid, {
           onSettings: (cloudMeta) => {
@@ -361,18 +520,45 @@ export default function App() {
             console.error(err);
           },
         });
+
+        unsubSocial = subscribeSocialMonitorData({
+          onUsers: (users) => setCloudAppUsers(users),
+          onEdges: (edges) => setCloudSocialEdges(edges),
+          onRooms: (rooms) => setCloudChatRooms(rooms),
+          onError: (err) => {
+            console.error(err);
+          },
+        });
       } catch (err) {
         const msg =
           err instanceof Error ? err.message : 'Firebase profile sync failed';
         showBanner('error', msg);
+      } finally {
+        setAuthLoading(false);
       }
     });
 
     return () => {
       unsubAuth();
       if (unsubWorkspace) unsubWorkspace();
+      if (unsubSocial) unsubSocial();
     };
   }, [showBanner]);
+
+  // Live snapshot confirmation listener on active publicSites/{siteId}
+  useEffect(() => {
+    if (!user || !isAuthorizedAdmin || !activeSiteId) return;
+    const unsubSite = subscribePublicWebsiteState(
+      activeSiteId,
+      () => {
+        setRealtimeStatus('live');
+      },
+      () => {
+        setRealtimeStatus('local');
+      }
+    );
+    return () => unsubSite();
+  }, [user, isAuthorizedAdmin, activeSiteId]);
 
   const handleSyncFromGitHub = useCallback(
     async (targetSettings?: GitHubSettings) => {
@@ -461,9 +647,140 @@ export default function App() {
     }
   }, [settings, proxySettings, appendAttemptLog, handleSyncFromGitHub]);
 
-  const handleUpdateConfig = useCallback((patch: Partial<ShayariLokConfig>) => {
-    setConfig((prev) => ({ ...prev, ...patch }));
-  }, []);
+  const pushImmediateCloudSync = useCallback(
+    async (nextConfig: ShayariLokConfig) => {
+      if (!user || !isAuthorizedAdmin || !activeSiteId) return;
+      setRealtimeStatus('syncing');
+      const startedAt =
+        typeof performance !== 'undefined' ? performance.now() : Date.now();
+      try {
+        await publishPublicWebsiteState(
+          user.uid,
+          nextConfig,
+          websiteContent,
+          enterprise.organizationName,
+          enterprise.supportEmail,
+          activeSiteId
+        );
+        const elapsed =
+          typeof performance !== 'undefined'
+            ? Math.round(performance.now() - startedAt)
+            : Math.round(Date.now() - startedAt);
+        setLastSyncLatencyMs(Math.max(12, elapsed));
+        setRealtimeStatus('live');
+      } catch {
+        setRealtimeStatus('local');
+      }
+    },
+    [
+      user,
+      isAuthorizedAdmin,
+      activeSiteId,
+      websiteContent,
+      enterprise.organizationName,
+      enterprise.supportEmail,
+    ]
+  );
+
+  const handleUpdateConfig = useCallback(
+    (patch: Partial<ShayariLokConfig>, instantSync?: boolean) => {
+      const next = { ...configRef.current, ...patch };
+      setConfig(next);
+      if (instantSync) {
+        void pushImmediateCloudSync(next);
+      }
+    },
+    [pushImmediateCloudSync]
+  );
+
+  const handleSelectApp = useCallback(
+    (nextAppId: string) => {
+      if (nextAppId === activeAppId) return;
+      const target = managedApps.find((a) => a.id === nextAppId);
+      if (!target) return;
+
+      saveAppDraft(activeAppId, configRef.current);
+      setActiveAppId(nextAppId);
+      saveActiveAppId(nextAppId);
+
+      const nextDraft = loadAppDraft(target);
+      setConfig(nextDraft);
+      setBaselineConfig(nextDraft);
+      setSettings((prev) => {
+        const updated: GitHubSettings = {
+          ...prev,
+          path: target.githubPath || 'config.json',
+        };
+        saveGitHubSettings(updated);
+        return updated;
+      });
+      logActivity('App Switched', `${target.name} (${target.packageId})`);
+      showBanner('info', `Switched control panel to ${target.name} (${target.packageId}).`);
+    },
+    [activeAppId, managedApps, logActivity, showBanner]
+  );
+
+  const handleCreateApp = useCallback(
+    (input: { name: string; packageId: string; githubPath: string }) => {
+      saveAppDraft(activeAppId, configRef.current);
+      const created = createManagedAppProfile(input, managedApps);
+      const nextApps = [...managedApps, created];
+      setManagedApps(nextApps);
+      saveManagedApps(nextApps);
+      setActiveAppId(created.id);
+      saveActiveAppId(created.id);
+
+      const initialDraft = loadAppDraft(created);
+      saveAppDraft(created.id, initialDraft);
+      setConfig(initialDraft);
+      setBaselineConfig(initialDraft);
+      setSettings((prev) => {
+        const updated: GitHubSettings = {
+          ...prev,
+          path: created.githubPath,
+        };
+        saveGitHubSettings(updated);
+        return updated;
+      });
+      logActivity('App Added', `${created.name} (${created.packageId})`);
+      showBanner(
+        'success',
+        `नया ऐप "${created.name}" (${created.packageId}) मल्टी-ऐप कंट्रोल में जुड़ गया!`
+      );
+    },
+    [activeAppId, managedApps, logActivity, showBanner]
+  );
+
+  const handleDeleteApp = useCallback(
+    (appId: string) => {
+      if (appId === 'default') return;
+      const target = managedApps.find((a) => a.id === appId);
+      const nextApps = managedApps.filter((a) => a.id !== appId);
+      setManagedApps(nextApps);
+      saveManagedApps(nextApps);
+      if (activeAppId === appId) {
+        const fallback = nextApps[0];
+        setActiveAppId(fallback.id);
+        saveActiveAppId(fallback.id);
+        const fallbackDraft = loadAppDraft(fallback);
+        setConfig(fallbackDraft);
+        setBaselineConfig(fallbackDraft);
+        setSettings((prev) => {
+          const updated: GitHubSettings = {
+            ...prev,
+            path: fallback.githubPath,
+          };
+          saveGitHubSettings(updated);
+          return updated;
+        });
+      }
+      if (target) {
+        logActivity('App Removed', `${target.name} (${target.packageId})`);
+        showBanner('info', `Removed ${target.name} from Multi-App switcher.`);
+      }
+    },
+    [activeAppId, managedApps, logActivity, showBanner]
+  );
 
   const handleSaveSettings = async () => {
     const cleaned: GitHubSettings = {
@@ -523,10 +840,14 @@ export default function App() {
         `v${targetConfig.latest_version_code} via ${res.routeLabel} (${res.sha.slice(0, 7)})`
       );
 
-      if (user) {
+      if (user && isAuthorizedAdmin) {
         await Promise.all([
           saveCloudRepoSettings(user.uid, settings, res.sha),
-          saveCloudDraft(user.uid, targetConfig),
+          saveCloudDraft(
+            user.uid,
+            targetConfig,
+            activeApp.id === 'default' ? 'default' : activeApp.id
+          ),
           recordPublishLog(user.uid, {
             commitSha: res.commitSha,
             branch: settings.branch.trim() || 'main',
@@ -571,7 +892,7 @@ export default function App() {
         guardrail.warnings.length > 0
           ? guardrail.warnings
           : [
-              `Ready to push config.json (v${config.latest_version_code}, ${config.shayari_list.length} shayaris) to ${settings.owner}/${settings.repo}.`,
+              `Ready to push ${settings.path || 'config.json'} (v${config.latest_version_code}, ${config.shayari_list.length} shayaris) to ${settings.owner}/${settings.repo}.`,
             ]
       );
       return;
@@ -605,16 +926,17 @@ export default function App() {
 
   const handleGoogleSignIn = async () => {
     if (!auth || !googleProvider) {
-      showBanner(
-        'error',
-        firebaseInitError || 'Firebase Auth उपलब्ध नहीं है।'
-      );
+      const errObj = new Error(firebaseInitError || 'Firebase Auth उपलब्ध नहीं है।');
+      setAuthError(errObj);
+      showBanner('error', errObj.message);
       return;
     }
+    setAuthError(null);
     try {
       await signInWithPopup(auth, googleProvider);
       showBanner('success', 'Google अकाउंट से साइन-इन सफल रहा।');
     } catch (error) {
+      setAuthError(error);
       const msg =
         error instanceof Error ? error.message : 'Google Sign-In विफल रहा।';
       showBanner('error', msg);
@@ -625,6 +947,8 @@ export default function App() {
     if (!auth) return;
     try {
       await signOut(auth);
+      setCloudAllowlistedAdmin(false);
+      setAuthError(null);
       showBanner('info', 'आप सफलतापूर्वक साइन-आउट हो गए हैं।');
     } catch (error) {
       const msg =
@@ -634,10 +958,14 @@ export default function App() {
   };
 
   const handleSaveCloudDraft = async () => {
-    if (!user) return;
+    if (!user || !isAuthorizedAdmin) return;
     setCloudBusy(true);
     try {
-      await saveCloudDraft(user.uid, config);
+      await saveCloudDraft(
+        user.uid,
+        config,
+        activeApp.id === 'default' ? 'default' : activeApp.id
+      );
       showBanner('success', 'वर्तमान config.json ड्राफ्ट Firestore क्लाउड में सेव हो गया।');
     } catch (error) {
       const msg =
@@ -649,10 +977,13 @@ export default function App() {
   };
 
   const handleLoadCloudDraft = async () => {
-    if (!user) return;
+    if (!user || !isAuthorizedAdmin) return;
     setCloudBusy(true);
     try {
-      const cloudConfig = await loadCloudDraft(user.uid);
+      const cloudConfig = await loadCloudDraft(
+        user.uid,
+        activeApp.id === 'default' ? 'default' : activeApp.id
+      );
       if (!cloudConfig) {
         showBanner('info', 'Firestore में अभी कोई सेव किया हुआ ड्राफ्ट नहीं मिला।');
       } else {
@@ -786,26 +1117,102 @@ export default function App() {
   };
 
   const handleSyncLiveWebsiteNow = useCallback(async () => {
-    if (!user) return;
+    if (!user || !isAuthorizedAdmin || !activeSiteId) {
+      showBanner(
+        'info',
+        'लाइव Firestore क्लाउड सिंक के लिए वेरीफाइड Google एडमिन से साइन-इन आवश्यक है (अभी लोकल सैंडबॉक्स सक्रिय है)।'
+      );
+      return;
+    }
     setLiveSyncing(true);
+    setRealtimeStatus('syncing');
+    const startedAt =
+      typeof performance !== 'undefined' ? performance.now() : Date.now();
     try {
       await publishPublicWebsiteState(
         user.uid,
-        config,
+        configRef.current,
         websiteContent,
         enterprise.organizationName,
-        enterprise.supportEmail
+        enterprise.supportEmail,
+        activeSiteId
       );
-      showBanner('success', 'लाइव वेबसाइट (Firestore Cloud Real-Time Mirror) अपडेट हो गई।');
-      logActivity('Live Website Synced', `Updated publicSites/${user.uid}`);
+      const elapsed =
+        typeof performance !== 'undefined'
+          ? Math.round(performance.now() - startedAt)
+          : Math.round(Date.now() - startedAt);
+      setLastSyncLatencyMs(Math.max(12, elapsed));
+      setRealtimeStatus('live');
+      showBanner('success', `लाइव वेबसाइट और ऐप (${activeSiteId}) Firestore पर अपडेट हो गए (${Math.max(12, elapsed)}ms)।`);
+      logActivity('Live Website Synced', `Updated publicSites/${activeSiteId}`);
     } catch (error) {
+      setRealtimeStatus('local');
       const msg =
         error instanceof Error ? error.message : 'Live website cloud sync failed';
       showBanner('error', msg);
     } finally {
       setLiveSyncing(false);
     }
-  }, [user, config, websiteContent, enterprise.organizationName, enterprise.supportEmail, showBanner, logActivity]);
+  }, [
+    user,
+    isAuthorizedAdmin,
+    activeSiteId,
+    websiteContent,
+    enterprise.organizationName,
+    enterprise.supportEmail,
+    showBanner,
+    logActivity,
+  ]);
+
+  const handleTriggerForceUpdate = useCallback(async () => {
+    const nextVersion = configRef.current.latest_version_code + 1;
+    const resolvedUrl =
+      configRef.current.force_update_url.trim() ||
+      `https://play.google.com/store/apps/details?id=${activeApp.packageId}`;
+    const nextConfig: ShayariLokConfig = {
+      ...configRef.current,
+      latest_version_code: nextVersion,
+      force_update_url: resolvedUrl,
+    };
+    setConfig(nextConfig);
+    logActivity('Force Update Triggered', `${activeApp.name} -> v${nextVersion}`);
+    if (user && isAuthorizedAdmin && activeSiteId) {
+      await pushImmediateCloudSync(nextConfig);
+      showBanner(
+        'success',
+        `Force Update v${nextVersion} (${activeApp.name}) Firestore पर लाइव पुश हो गया!`
+      );
+    } else {
+      showBanner(
+        'success',
+        `Force Update वर्ज़न v${nextVersion} (${activeApp.name}) तैयार हो गया! (क्लाउड पुश के लिए Publish या Google Admin Sign-In करें)`
+      );
+    }
+  }, [
+    activeApp.name,
+    activeApp.packageId,
+    user,
+    isAuthorizedAdmin,
+    activeSiteId,
+    pushImmediateCloudSync,
+    logActivity,
+    showBanner,
+  ]);
+
+  const effectiveAppUsers = useMemo(
+    () => (isAuthorizedAdmin && cloudAppUsers.length > 0 ? cloudAppUsers : DEMO_APP_USERS),
+    [isAuthorizedAdmin, cloudAppUsers]
+  );
+  const effectiveSocialEdges = useMemo(
+    () => (isAuthorizedAdmin && cloudSocialEdges.length > 0 ? cloudSocialEdges : DEMO_SOCIAL_EDGES),
+    [isAuthorizedAdmin, cloudSocialEdges]
+  );
+  const effectiveChatRooms = useMemo(
+    () => (isAuthorizedAdmin && cloudChatRooms.length > 0 ? cloudChatRooms : DEMO_CHAT_ROOMS),
+    [isAuthorizedAdmin, cloudChatRooms]
+  );
+  const userDataMode: 'live' | 'sandbox' =
+    isAuthorizedAdmin && cloudAppUsers.length > 0 ? 'live' : 'sandbox';
 
   const standaloneWebsiteUrl = useMemo(() => {
     const origin =
@@ -813,17 +1220,17 @@ export default function App() {
     const pathname =
       typeof window !== 'undefined' ? window.location.pathname : '/';
     return buildStandaloneEntryUrl('website.html', origin, pathname, {
-      siteId: user?.uid ?? null,
+      siteId: activeSiteId || (user?.uid ?? null),
       repoOverride: githubReady
         ? {
             owner: settings.owner,
             repo: settings.repo,
             branch: settings.branch || 'main',
-            path: settings.path || 'config.json',
+            path: activeApp.githubPath || settings.path || 'config.json',
           }
         : null,
     });
-  }, [user, githubReady, settings]);
+  }, [activeSiteId, user, githubReady, settings, activeApp.githubPath]);
 
   const standalonePrivacyUrl = useMemo(() => {
     const origin =
@@ -831,17 +1238,67 @@ export default function App() {
     const pathname =
       typeof window !== 'undefined' ? window.location.pathname : '/';
     return buildStandaloneEntryUrl('privacy.html', origin, pathname, {
-      siteId: user?.uid ?? null,
+      siteId: activeSiteId || (user?.uid ?? null),
       repoOverride: githubReady
         ? {
             owner: settings.owner,
             repo: settings.repo,
             branch: settings.branch || 'main',
-            path: settings.path || 'config.json',
+            path: activeApp.githubPath || settings.path || 'config.json',
           }
         : null,
     });
-  }, [user, githubReady, settings]);
+  }, [activeSiteId, user, githubReady, settings, activeApp.githubPath]);
+
+  // Full-Screen Live Public Website Suite (#/site, #/site/shayari, #/site/suvichar, #/site/updates, #/site/privacy)
+  if (routeState.view === 'site') {
+    return (
+      <>
+        <Suspense
+          fallback={
+            <div className="min-h-screen flex items-center justify-center bg-slate-50 text-xs font-medium text-slate-500">
+              Loading public portal...
+            </div>
+          }
+        >
+          <PublicWebsiteView
+            page={routeState.page}
+            onNavigatePage={navigatePublicSite}
+            onBackToAdmin={() => navigateSection('dashboard')}
+            config={config}
+            websiteContent={websiteContent}
+            organizationName={enterprise.organizationName}
+            supportEmail={enterprise.supportEmail}
+            publicSyncState={publicSyncState}
+            publicSyncMessage={publicSyncMessage}
+            standalonePrivacyHref={standalonePrivacyUrl}
+            standaloneWebsiteHref={standaloneWebsiteUrl}
+          />
+        </Suspense>
+        <CopyToastBanner />
+      </>
+    );
+  }
+
+  // Strict Zero-Trust Admin Authentication Gate
+  if (!canEnterAdmin) {
+    return (
+      <>
+        <AdminAuthGate
+          organizationName={enterprise.organizationName}
+          user={user}
+          authLoading={authLoading}
+          isAuthorizedUser={isAuthorizedAdmin}
+          authError={authError}
+          canEnterLocalSandbox={canEnterLocalSandbox}
+          onGoogleSignIn={handleGoogleSignIn}
+          onGoogleSignOut={handleGoogleSignOut}
+          onEnterLocalSandbox={() => setLocalSandboxUnlocked(true)}
+        />
+        <CopyToastBanner />
+      </>
+    );
+  }
 
   if (isLocked) {
     return (
@@ -853,61 +1310,47 @@ export default function App() {
     );
   }
 
-  // Full-Screen Live Public Website Suite (#/site, #/site/shayari, #/site/suvichar, #/site/updates, #/site/privacy)
-  if (routeState.view === 'site') {
-    return (
-      <>
-        <PublicWebsiteView
-          page={routeState.page}
-          onNavigatePage={navigatePublicSite}
-          onBackToAdmin={() => navigateSection('dashboard')}
-          config={config}
-          websiteContent={websiteContent}
-          organizationName={enterprise.organizationName}
-          supportEmail={enterprise.supportEmail}
-          publicSyncState={publicSyncState}
-          publicSyncMessage={publicSyncMessage}
-          standalonePrivacyHref={standalonePrivacyUrl}
-          standaloneWebsiteHref={standaloneWebsiteUrl}
-        />
-        <CopyToastBanner />
-      </>
-    );
-  }
-
   // Full-Screen Enterprise Settings Hub & Individual 10 Setting Pages (#/settings, #/settings/<tab>)
   if (routeState.view === 'settings') {
     return (
       <>
-        <FullScreenSettingsPage
-          activeTab={routeState.tab}
-          onSelectTab={navigateSettingsTab}
-          onBackToAdmin={() => navigateSection('dashboard')}
-          onOpenLiveSite={() => navigatePublicSite('home')}
-          enterprise={enterprise}
-          onSaveEnterprise={handleSaveEnterprise}
-          config={config}
-          baselineConfig={baselineConfig}
-          onUpdateConfig={setConfig}
-          githubSettings={settings}
-          currentSha={currentSha}
-          commitMessage={commitMessage}
-          proxySettings={proxySettings}
-          snapshots={snapshots}
-          onCreateSnapshot={handleCreateSnapshot}
-          onRestoreSnapshot={handleRestoreSnapshot}
-          onDeleteSnapshot={handleDeleteSnapshot}
-          auditLog={auditLog}
-          onClearAuditLog={() => {
-            setAuditLog([]);
-            saveAuditLog([]);
-          }}
-          onLogAction={logActivity}
-          onLockNow={() => setIsLocked(true)}
-          onWipePat={handleWipePat}
-          onResetToSeed={handleResetToSeed}
-          user={user}
-        />
+        <Suspense
+          fallback={
+            <div className="min-h-screen flex items-center justify-center bg-slate-50 text-xs font-medium text-slate-500">
+              Loading Enterprise Settings...
+            </div>
+          }
+        >
+          <FullScreenSettingsPage
+            activeTab={routeState.tab}
+            onSelectTab={navigateSettingsTab}
+            onBackToAdmin={() => navigateSection('dashboard')}
+            onOpenLiveSite={() => navigatePublicSite('home')}
+            enterprise={enterprise}
+            onSaveEnterprise={handleSaveEnterprise}
+            config={config}
+            baselineConfig={baselineConfig}
+            onUpdateConfig={setConfig}
+            githubSettings={settings}
+            currentSha={currentSha}
+            commitMessage={commitMessage}
+            proxySettings={proxySettings}
+            snapshots={snapshots}
+            onCreateSnapshot={handleCreateSnapshot}
+            onRestoreSnapshot={handleRestoreSnapshot}
+            onDeleteSnapshot={handleDeleteSnapshot}
+            auditLog={auditLog}
+            onClearAuditLog={() => {
+              setAuditLog([]);
+              saveAuditLog([]);
+            }}
+            onLogAction={logActivity}
+            onLockNow={() => setIsLocked(true)}
+            onWipePat={handleWipePat}
+            onResetToSeed={handleResetToSeed}
+            user={user}
+          />
+        </Suspense>
         <CopyToastBanner />
       </>
     );
@@ -932,6 +1375,8 @@ export default function App() {
         hasPin={Boolean(enterprise.pinHash)}
         onOpenEnterpriseSetting={handleOpenEnterpriseSetting}
         onLockNow={() => setIsLocked(true)}
+        activeAppName={activeApp.name}
+        activePackageId={activeApp.packageId}
       />
 
       <div className="flex-1 flex flex-col min-w-0">
@@ -951,6 +1396,11 @@ export default function App() {
           onOpenEnterpriseSetting={handleOpenEnterpriseSetting}
           onOpenLiveSite={() => navigatePublicSite('home')}
           onLockNow={() => setIsLocked(true)}
+          apps={managedApps}
+          activeAppId={activeApp.id}
+          onSelectApp={handleSelectApp}
+          onCreateApp={handleCreateApp}
+          onDeleteApp={handleDeleteApp}
         />
 
         <main
@@ -995,8 +1445,17 @@ export default function App() {
           {activeSection === 'dashboard' && (
             <DashboardSection
               config={config}
+              activeApp={activeApp}
+              appUsers={effectiveAppUsers}
+              socialEdges={effectiveSocialEdges}
+              chatRooms={effectiveChatRooms}
+              userDataMode={userDataMode}
+              realtimeStatus={realtimeStatus}
+              lastSyncLatencyMs={lastSyncLatencyMs}
               onUpdate={handleUpdateConfig}
               onNavigate={navigateSection}
+              onSyncLiveNow={handleSyncLiveWebsiteNow}
+              onTriggerForceUpdate={handleTriggerForceUpdate}
             />
           )}
 
@@ -1026,10 +1485,18 @@ export default function App() {
           )}
 
           {activeSection === 'social-monitor' && (
-            <SocialMonitorSection
-              user={user}
-              onSignIn={() => void handleGoogleSignIn()}
-            />
+            <Suspense
+              fallback={
+                <div className="bg-white border border-slate-200 rounded-xl p-8 text-center text-xs text-slate-500">
+                  Loading Users &amp; Live Chats monitor...
+                </div>
+              }
+            >
+              <SocialMonitorSection
+                user={user}
+                onSignIn={() => void handleGoogleSignIn()}
+              />
+            </Suspense>
           )}
 
           {activeSection === 'monetization' && (
@@ -1042,27 +1509,45 @@ export default function App() {
           )}
 
           {activeSection === 'website' && (
-            <WebsiteHubSection
-              config={config}
-              websiteContent={websiteContent}
-              githubSettings={settings}
-              user={user}
-              liveSyncing={liveSyncing}
-              onSyncLiveWebsiteNow={handleSyncLiveWebsiteNow}
-              onOpenPublicPage={navigatePublicSite}
-              onOpenPinSettings={() => navigateSettingsTab('pin_lock')}
-            />
+            <Suspense
+              fallback={
+                <div className="bg-white border border-slate-200 rounded-xl p-8 text-center text-xs text-slate-500">
+                  Loading Live Websites hub...
+                </div>
+              }
+            >
+              <WebsiteHubSection
+                config={config}
+                websiteContent={websiteContent}
+                githubSettings={settings}
+                user={user}
+                liveSyncing={liveSyncing}
+                onSyncLiveWebsiteNow={handleSyncLiveWebsiteNow}
+                onOpenPublicPage={navigatePublicSite}
+                onOpenPinSettings={() => navigateSettingsTab('pin_lock')}
+              />
+            </Suspense>
           )}
 
           {activeSection === 'android-api' && (
-            <AndroidApiSection
-              config={config}
-              githubSettings={settings}
-              proxySettings={proxySettings}
-              user={user}
-              onOpenGitHubSync={() => navigateSection('sync')}
-              onOpenProxySettings={() => navigateSection('proxy')}
-            />
+            <Suspense
+              fallback={
+                <div className="bg-white border border-slate-200 rounded-xl p-8 text-center text-xs text-slate-500">
+                  Loading Android API &amp; SDK generator...
+                </div>
+              }
+            >
+              <AndroidApiSection
+                config={config}
+                githubSettings={settings}
+                proxySettings={proxySettings}
+                user={user}
+                activeSiteId={activeSiteId || undefined}
+                activePackageId={activeApp.packageId}
+                onOpenGitHubSync={() => navigateSection('sync')}
+                onOpenProxySettings={() => navigateSection('proxy')}
+              />
+            </Suspense>
           )}
 
           {activeSection === 'proxy' && (

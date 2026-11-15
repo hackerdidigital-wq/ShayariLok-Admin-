@@ -1,23 +1,117 @@
 import React from 'react';
-import { AlertTriangle, Plus, ShieldCheck, Smartphone } from 'lucide-react';
-import type { ShayariLokConfig } from '../types/config';
-import { PACKAGE_ID } from '../utils/configHelpers';
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Plus,
+  Radio,
+  Rocket,
+  ShieldCheck,
+  Smartphone,
+} from 'lucide-react';
+import type {
+  AppUserProfile,
+  ChatRoomItem,
+  ShayariLokConfig,
+  SocialEdgeItem,
+} from '../types/config';
+import type { ManagedAppProfile } from '../utils/multiAppRegistry';
+import { UserAnalyticsPanel } from './UserAnalyticsPanel';
 
 interface DashboardSectionProps {
   config: ShayariLokConfig;
-  onUpdate: (patch: Partial<ShayariLokConfig>) => void;
-  onNavigate: (section: 'shayari' | 'notifications' | 'monetization' | 'android-api') => void;
+  activeApp: ManagedAppProfile;
+  appUsers: AppUserProfile[];
+  socialEdges: SocialEdgeItem[];
+  chatRooms: ChatRoomItem[];
+  userDataMode: 'live' | 'sandbox';
+  realtimeStatus: 'live' | 'syncing' | 'local';
+  lastSyncLatencyMs: number | null;
+  onUpdate: (patch: Partial<ShayariLokConfig>, instantSync?: boolean) => void;
+  onNavigate: (
+    section:
+      | 'shayari'
+      | 'notifications'
+      | 'monetization'
+      | 'android-api'
+      | 'social-monitor'
+  ) => void;
+  onSyncLiveNow: () => Promise<void>;
+  onTriggerForceUpdate: () => Promise<void>;
 }
 
 export const DashboardSection: React.FC<DashboardSectionProps> = ({
   config,
+  activeApp,
+  appUsers,
+  socialEdges,
+  chatRooms,
+  userDataMode,
+  realtimeStatus,
+  lastSyncLatencyMs,
   onUpdate,
   onNavigate,
+  onSyncLiveNow,
+  onTriggerForceUpdate,
 }) => {
   const customCategoryCount = Math.max(0, config.categories.length - 1);
 
   return (
     <div className="space-y-6">
+      {/* Live Cloud Sync & Active App Control Header */}
+      <section className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div className="space-y-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="font-mono font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded">
+              {activeApp.packageId}
+            </span>
+            <span className="font-mono text-slate-500">
+              Path: {activeApp.githubPath}
+            </span>
+            <span
+              className={`inline-flex items-center gap-1 font-mono text-[11px] font-semibold px-2 py-0.5 rounded border ${
+                realtimeStatus === 'live'
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                  : realtimeStatus === 'syncing'
+                    ? 'bg-amber-50 border-amber-200 text-amber-800'
+                    : 'bg-slate-100 border-slate-200 text-slate-600'
+              }`}
+            >
+              <Radio className="w-3 h-3" />
+              <span>
+                {realtimeStatus === 'live'
+                  ? `Firestore Live${lastSyncLatencyMs !== null ? ` (${lastSyncLatencyMs}ms)` : ''}`
+                  : realtimeStatus === 'syncing'
+                    ? 'Syncing...'
+                    : 'Local Sandbox Mode'}
+              </span>
+            </span>
+          </div>
+          <p className="text-xs sm:text-sm text-slate-600">
+            एडमिन से किया गया कोई भी बदलाव 100–300ms में Firestore लाइव लिसनर द्वारा ऐप और पब्लिक साइट तक पहुँचता है।
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => void onSyncLiveNow()}
+            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-800 bg-slate-100 border border-slate-200 rounded-lg hover:bg-slate-200 transition-colors whitespace-nowrap"
+          >
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Push Live Cloud Sync</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => void onTriggerForceUpdate()}
+            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors whitespace-nowrap"
+          >
+            <Rocket className="w-3.5 h-3.5" />
+            <span>Trigger Force Update (v{config.latest_version_code + 1})</span>
+          </button>
+        </div>
+      </section>
+
       {/* KPI Overview Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <button
@@ -54,7 +148,7 @@ export const DashboardSection: React.FC<DashboardSectionProps> = ({
             v{config.latest_version_code}
           </div>
           <div className="mt-1 font-mono text-xs text-slate-500 truncate">
-            {PACKAGE_ID}
+            {activeApp.packageId}
           </div>
         </div>
 
@@ -63,12 +157,12 @@ export const DashboardSection: React.FC<DashboardSectionProps> = ({
           onClick={() => onNavigate('monetization')}
           className="text-left bg-white border border-slate-200 rounded-xl p-5 hover:border-slate-300 transition-colors"
         >
-          <div className="text-xs font-medium text-slate-500">App & Ads Status</div>
+          <div className="text-xs font-medium text-slate-500">App &amp; Ads Status</div>
           <div className="mt-2 font-display text-xl font-bold text-slate-900">
             {config.maintenance_mode ? (
               <span className="text-red-700">Maintenance ON</span>
             ) : (
-              <span className="text-emerald-700">Live & Healthy</span>
+              <span className="text-emerald-700">Live &amp; Healthy</span>
             )}
           </div>
           <div className="mt-1 text-xs text-slate-500">
@@ -82,7 +176,7 @@ export const DashboardSection: React.FC<DashboardSectionProps> = ({
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-4 border-b border-slate-100">
           <div>
             <h2 className="font-display text-lg font-semibold text-slate-900">
-              App Control & Force Update
+              App Control &amp; Force Update
             </h2>
             <p className="text-sm text-slate-500">
               एंड्रॉइड ऐप का नाम, वर्ज़न कोड और मेंटेनेंस मोड रिमोटली कंट्रोल करें।
@@ -98,7 +192,7 @@ export const DashboardSection: React.FC<DashboardSectionProps> = ({
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors"
             >
               <Smartphone className="w-3.5 h-3.5" />
-              <span>Android Endpoint & Code</span>
+              <span>Android Endpoint &amp; Code</span>
             </button>
           </div>
         </div>
@@ -151,9 +245,10 @@ export const DashboardSection: React.FC<DashboardSectionProps> = ({
               <button
                 type="button"
                 onClick={() =>
-                  onUpdate({
-                    latest_version_code: config.latest_version_code + 1,
-                  })
+                  onUpdate(
+                    { latest_version_code: config.latest_version_code + 1 },
+                    true
+                  )
                 }
                 aria-label="Increment latest version code by 1"
                 className="flex items-center gap-1 px-4 py-2.5 text-sm font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors whitespace-nowrap shrink-0"
@@ -180,7 +275,7 @@ export const DashboardSection: React.FC<DashboardSectionProps> = ({
               type="url"
               value={config.force_update_url}
               onChange={(e) => onUpdate({ force_update_url: e.target.value })}
-              placeholder="https://play.google.com/store/apps/details?id=com.cyberking.shayarilok"
+              placeholder={`https://play.google.com/store/apps/details?id=${activeApp.packageId}`}
               className="w-full px-3.5 py-2.5 text-sm font-mono bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
             />
           </div>
@@ -205,7 +300,7 @@ export const DashboardSection: React.FC<DashboardSectionProps> = ({
                 )
               </h2>
               <p className="text-sm text-slate-500">
-                चालू करने पर यूजर ऐप में मुख्य स्क्रीन लॉक होकर नीचे लिखा संदेश दिखेगा।
+                चालू करने पर यूजर ऐप में मुख्य स्क्रीन लॉक होकर नीचे लिखा संदेश 100–300ms में लाइव दिखेगा।
               </p>
             </div>
           </div>
@@ -216,7 +311,7 @@ export const DashboardSection: React.FC<DashboardSectionProps> = ({
             aria-checked={config.maintenance_mode}
             aria-label="Toggle maintenance mode"
             onClick={() =>
-              onUpdate({ maintenance_mode: !config.maintenance_mode })
+              onUpdate({ maintenance_mode: !config.maintenance_mode }, true)
             }
             className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:ring-offset-2 ${
               config.maintenance_mode ? 'bg-red-600' : 'bg-slate-200'
@@ -251,6 +346,16 @@ export const DashboardSection: React.FC<DashboardSectionProps> = ({
           />
         </div>
       </section>
+
+      {/* User Analytics & Live Activity Panel */}
+      <UserAnalyticsPanel
+        config={config}
+        appUsers={appUsers}
+        socialEdges={socialEdges}
+        chatRooms={chatRooms}
+        dataMode={userDataMode}
+        onOpenUsersMonitor={() => onNavigate('social-monitor')}
+      />
     </div>
   );
 };

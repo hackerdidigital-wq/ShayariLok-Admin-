@@ -35,11 +35,27 @@ service cloud.firestore {
       return isVerified() && request.auth.token.email == 'bamniyad749@gmail.com';
     }
 
+    function isOwnerSiteId(siteId) {
+      return isOwner(siteId) || (
+        isVerified()
+        && siteId.matches('^' + request.auth.uid + '_[a-zA-Z0-9\\-]+$')
+      );
+    }
+
     function isAdmin() {
       return isVerified() && (
         exists(/databases/$(database)/documents/admins/$(request.auth.uid))
         || request.auth.token.email == 'bamniyad749@gmail.com'
       );
+    }
+
+    function isValidAdminAllowlist(data) {
+      return data.keys().hasAll(['uid', 'email', 'role', 'createdAt'])
+        && data.keys().hasOnly(['uid', 'email', 'role', 'createdAt'])
+        && isValidId(data.uid)
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 254
+        && data.role is string && data.role in ['admin', 'editor']
+        && data.createdAt is timestamp;
     }
 
     function isValidAdminUser(data) {
@@ -284,19 +300,32 @@ service cloud.firestore {
         && data.createdAt is timestamp;
     }
 
+    match /admins/{adminUid} {
+      allow get: if isValidId(adminUid) && (isOwner(adminUid) || isVerifiedAdminEmail());
+      allow list: if isVerifiedAdminEmail();
+      allow create, update: if isValidId(adminUid)
+        && isVerifiedAdminEmail()
+        && isValidAdminAllowlist(incoming())
+        && incoming().uid == adminUid
+        && incoming().createdAt == request.time;
+      allow delete: if isValidId(adminUid) && isVerifiedAdminEmail();
+    }
+
     match /publicSites/{siteId} {
       allow get: if isValidId(siteId);
       allow list: if false;
       allow create: if isValidId(siteId)
-        && isOwner(siteId)
+        && isAdmin()
+        && isOwnerSiteId(siteId)
         && isValidPublicSite(incoming())
         && incoming().updatedAt == request.time;
       allow update: if isValidId(siteId)
-        && isOwner(siteId)
+        && isAdmin()
+        && isOwnerSiteId(siteId)
         && isValidPublicSite(incoming())
         && incoming().ownerId == existing().ownerId
         && incoming().updatedAt == request.time;
-      allow delete: if isValidId(siteId) && isOwner(siteId);
+      allow delete: if isValidId(siteId) && isAdmin() && isOwnerSiteId(siteId);
     }
 
     match /appUsers/{appUserId} {
@@ -439,14 +468,16 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow get: if isValidId(userId) && isOwner(userId);
+      allow get: if isValidId(userId) && isAdmin() && isOwner(userId);
       allow list: if false;
       allow create: if isValidId(userId)
+        && isAdmin()
         && isOwner(userId)
         && isValidAdminUser(incoming())
         && incoming().createdAt == request.time
         && incoming().updatedAt == request.time;
       allow update: if isValidId(userId)
+        && isAdmin()
         && isOwner(userId)
         && isValidAdminUser(incoming())
         && incoming().uid == existing().uid
@@ -456,16 +487,18 @@ service cloud.firestore {
       allow delete: if false;
 
       match /settings/{settingId} {
-        allow get: if isValidId(userId) && isValidId(settingId) && isOwner(userId);
-        allow list: if isOwner(userId) && resource.data.ownerId == request.auth.uid;
+        allow get: if isValidId(userId) && isValidId(settingId) && isAdmin() && isOwner(userId);
+        allow list: if isAdmin() && isOwner(userId) && resource.data.ownerId == request.auth.uid;
         allow create: if isValidId(userId)
           && isValidId(settingId)
+          && isAdmin()
           && isOwner(userId)
           && isValidRepoConnection(incoming())
           && incoming().updatedAt == request.time
           && exists(/databases/$(database)/documents/users/$(userId));
         allow update: if isValidId(userId)
           && isValidId(settingId)
+          && isAdmin()
           && isOwner(userId)
           && isValidRepoConnection(incoming())
           && incoming().ownerId == existing().ownerId
@@ -473,20 +506,22 @@ service cloud.firestore {
           && incoming().diff(existing()).affectedKeys().hasOnly([
             'githubOwner', 'githubRepo', 'githubBranch', 'githubPath', 'lastSha', 'updatedAt'
           ]);
-        allow delete: if isValidId(userId) && isValidId(settingId) && isOwner(userId);
+        allow delete: if isValidId(userId) && isValidId(settingId) && isAdmin() && isOwner(userId);
       }
 
       match /drafts/{draftId} {
-        allow get: if isValidId(userId) && isValidId(draftId) && isOwner(userId);
-        allow list: if isOwner(userId) && resource.data.ownerId == request.auth.uid;
+        allow get: if isValidId(userId) && isValidId(draftId) && isAdmin() && isOwner(userId);
+        allow list: if isAdmin() && isOwner(userId) && resource.data.ownerId == request.auth.uid;
         allow create: if isValidId(userId)
           && isValidId(draftId)
+          && isAdmin()
           && isOwner(userId)
           && isValidConfigDraft(incoming())
           && incoming().updatedAt == request.time
           && exists(/databases/$(database)/documents/users/$(userId));
         allow update: if isValidId(userId)
           && isValidId(draftId)
+          && isAdmin()
           && isOwner(userId)
           && isValidConfigDraft(incoming())
           && incoming().ownerId == existing().ownerId
@@ -498,14 +533,15 @@ service cloud.firestore {
             'announcement_title', 'announcement_message', 'categories',
             'notifications', 'shayari_list', 'updatedAt'
           ]);
-        allow delete: if isValidId(userId) && isValidId(draftId) && isOwner(userId);
+        allow delete: if isValidId(userId) && isValidId(draftId) && isAdmin() && isOwner(userId);
       }
 
       match /publishLogs/{logId} {
-        allow get: if isValidId(userId) && isValidId(logId) && isOwner(userId);
-        allow list: if isOwner(userId) && resource.data.ownerId == request.auth.uid;
+        allow get: if isValidId(userId) && isValidId(logId) && isAdmin() && isOwner(userId);
+        allow list: if isAdmin() && isOwner(userId) && resource.data.ownerId == request.auth.uid;
         allow create: if isValidId(userId)
           && isValidId(logId)
+          && isAdmin()
           && isOwner(userId)
           && isValidPublishLog(incoming())
           && incoming().createdAt == request.time
@@ -514,16 +550,18 @@ service cloud.firestore {
       }
 
       match /proxyProfiles/{profileId} {
-        allow get: if isValidId(userId) && isValidId(profileId) && isOwner(userId);
-        allow list: if isOwner(userId) && resource.data.ownerId == request.auth.uid;
+        allow get: if isValidId(userId) && isValidId(profileId) && isAdmin() && isOwner(userId);
+        allow list: if isAdmin() && isOwner(userId) && resource.data.ownerId == request.auth.uid;
         allow create: if isValidId(userId)
           && isValidId(profileId)
+          && isAdmin()
           && isOwner(userId)
           && isValidProxyProfile(incoming())
           && incoming().updatedAt == request.time
           && exists(/databases/$(database)/documents/users/$(userId));
         allow update: if isValidId(userId)
           && isValidId(profileId)
+          && isAdmin()
           && isOwner(userId)
           && isValidProxyProfile(incoming())
           && incoming().ownerId == existing().ownerId
@@ -533,7 +571,7 @@ service cloud.firestore {
             'timeoutMs', 'maxRetries', 'autoFallbackToDirect',
             'forwardPatThroughProxy', 'customHeaderName', 'updatedAt'
           ]);
-        allow delete: if isValidId(userId) && isValidId(profileId) && isOwner(userId);
+        allow delete: if isValidId(userId) && isValidId(profileId) && isAdmin() && isOwner(userId);
       }
     }
   }

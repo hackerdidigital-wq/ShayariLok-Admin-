@@ -128,13 +128,28 @@ export async function loadCloudProxyProfile(
   }
 }
 
+export async function checkIsCloudAllowlistedAdmin(
+  uid: string
+): Promise<boolean> {
+  if (!db || !uid) return false;
+  const path = `admins/${uid}`;
+  try {
+    const snap = await getDoc(doc(db, 'admins', uid));
+    return snap.exists();
+  } catch {
+    return false;
+  }
+}
+
 export async function saveCloudDraft(
   uid: string,
-  config: ShayariLokConfig
+  config: ShayariLokConfig,
+  draftId = DRAFT_DOC_ID
 ): Promise<void> {
   if (!db) throw new Error('Firestore is not available.');
-  const path = `users/${uid}/drafts/${DRAFT_DOC_ID}`;
-  const ref = doc(db, 'users', uid, 'drafts', DRAFT_DOC_ID);
+  const safeDraftId = draftId.trim() || DRAFT_DOC_ID;
+  const path = `users/${uid}/drafts/${safeDraftId}`;
+  const ref = doc(db, 'users', uid, 'drafts', safeDraftId);
   const safe = prepareDraftForFirestore(config);
   try {
     await setDoc(ref, {
@@ -148,11 +163,13 @@ export async function saveCloudDraft(
 }
 
 export async function loadCloudDraft(
-  uid: string
+  uid: string,
+  draftId = DRAFT_DOC_ID
 ): Promise<ShayariLokConfig | null> {
   if (!db) throw new Error('Firestore is not available.');
-  const path = `users/${uid}/drafts/${DRAFT_DOC_ID}`;
-  const ref = doc(db, 'users', uid, 'drafts', DRAFT_DOC_ID);
+  const safeDraftId = draftId.trim() || DRAFT_DOC_ID;
+  const path = `users/${uid}/drafts/${safeDraftId}`;
+  const ref = doc(db, 'users', uid, 'drafts', safeDraftId);
   try {
     const snap = await getDoc(ref);
     if (!snap.exists()) return null;
@@ -281,11 +298,13 @@ export async function publishPublicWebsiteState(
   config: ShayariLokConfig,
   websiteContent: WebsiteContentSettings,
   organizationName: string,
-  supportEmail: string
+  supportEmail: string,
+  siteIdOverride?: string
 ): Promise<void> {
   if (!db) throw new Error('Firestore is not available.');
-  const path = `publicSites/${uid}`;
-  const ref = doc(db, 'publicSites', uid);
+  const targetSiteId = siteIdOverride?.trim() || uid;
+  const path = `publicSites/${targetSiteId}`;
+  const ref = doc(db, 'publicSites', targetSiteId);
   const safe = preparePublicSiteForFirestore(
     config,
     websiteContent,

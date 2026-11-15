@@ -525,6 +525,46 @@ dependencies {
 // For zero-boilerplate flat JSON in Android, prefer the jsDelivr CDN or GitHub Raw URL shown above.`;
 }
 
+export function generateFirestoreRealtimeListenerCode(
+  siteId?: string | null
+): string {
+  const effectiveSiteId = siteId?.trim() || 'YOUR_ADMIN_UID';
+  return `// FirestoreRealtimeRepository.kt — 100-300ms Real-Time Live Sync (No Refresh Needed)
+package com.cyberking.shayarilok.data.remote
+
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ListenerRegistration
+
+class FirestoreRealtimeRepository(
+    private val db: FirebaseFirestore = FirebaseFirestore.getInstance("${firebaseAppletConfig.firestoreDatabaseId}")
+) {
+    private var registration: ListenerRegistration? = null
+
+    fun startLiveSync(
+        onConfigUpdated: (Map<String, Any>) -> Unit,
+        onError: (Exception) -> Unit
+    ) {
+        registration?.remove()
+        registration = db.collection("publicSites")
+            .document("${effectiveSiteId}")
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    onError(error)
+                    return@addSnapshotListener
+                }
+                val data = snapshot?.data ?: return@addSnapshotListener
+                // Delivers maintenance_mode, latest_version_code, categories, notifications & shayari_list in ~100-300ms
+                onConfigUpdated(data)
+            }
+    }
+
+    fun stopLiveSync() {
+        registration?.remove()
+        registration = null
+    }
+}`;
+}
+
 export function summarizeConfigStats(config: ShayariLokConfig): {
   totalBytes: number;
   shayariCount: number;

@@ -11,7 +11,9 @@ import {
 } from 'lucide-react';
 import type { AdminSection, SyncStatus } from '../types/config';
 import type { EnterpriseTabId } from '../utils/enterpriseSettings';
+import type { ManagedAppProfile } from '../utils/multiAppRegistry';
 import { AdminBrandMenu } from './AdminBrandMenu';
+import { AppSwitcherBar } from './AppSwitcherBar';
 
 interface TopBarProps {
   activeSection: AdminSection;
@@ -29,12 +31,21 @@ interface TopBarProps {
   onOpenEnterpriseSetting: (tab: EnterpriseTabId | null) => void;
   onOpenLiveSite: () => void;
   onLockNow: () => void;
+  apps: ManagedAppProfile[];
+  activeAppId: string;
+  onSelectApp: (appId: string) => void;
+  onCreateApp: (input: {
+    name: string;
+    packageId: string;
+    githubPath: string;
+  }) => void;
+  onDeleteApp: (appId: string) => void;
 }
 
 const SECTION_TITLES: Record<AdminSection, string> = {
-  dashboard: 'Dashboard & App Control',
+  dashboard: 'Dashboard & Control',
   shayari: 'Shayari Manager',
-  notifications: 'Notifications & Announcements',
+  notifications: 'Notifications & Alerts',
   'social-monitor': 'Users & Live Chats (चैटिंग और यूजर्स कंट्रोल)',
   monetization: 'Monetization & Social Links',
   website: 'Live Public Websites',
@@ -60,24 +71,34 @@ export const TopBar: React.FC<TopBarProps> = ({
   onOpenEnterpriseSetting,
   onOpenLiveSite,
   onLockNow,
+  apps,
+  activeAppId,
+  onSelectApp,
+  onCreateApp,
+  onDeleteApp,
 }) => {
   return (
-    <header className="sticky top-0 z-30 h-16 bg-white border-b border-slate-200 px-4 sm:px-6 flex items-center justify-between gap-3">
-      <div className="flex items-center gap-3 min-w-0">
+    <header className="sticky top-0 z-30 h-16 bg-white border-b border-slate-200 px-3 sm:px-6 flex items-center justify-between gap-2 sm:gap-3">
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
         <button
           type="button"
           onClick={onOpenMobileMenu}
           aria-label="Open navigation menu"
-          className="lg:hidden p-2 -ml-2 rounded-lg text-slate-600 hover:bg-slate-100 hover:text-slate-900 shrink-0"
+          className="lg:hidden p-2 -ml-1 rounded-lg text-slate-600 hover:bg-slate-100 hover:text-slate-900 shrink-0"
         >
           <Menu className="w-5 h-5" />
         </button>
 
-        <div className="flex items-center gap-2 text-sm min-w-0">
-          <span className="hidden sm:inline font-medium text-slate-400 whitespace-nowrap shrink-0">
-            Shayari Lok
-          </span>
-          <span className="hidden sm:inline text-slate-300" aria-hidden="true">
+        <AppSwitcherBar
+          apps={apps}
+          activeAppId={activeAppId}
+          onSelectApp={onSelectApp}
+          onCreateApp={onCreateApp}
+          onDeleteApp={onDeleteApp}
+        />
+
+        <div className="hidden md:flex items-center gap-2 text-sm min-w-0">
+          <span className="text-slate-300" aria-hidden="true">
             /
           </span>
           <h1 className="font-display font-semibold text-slate-900 truncate">
@@ -91,7 +112,7 @@ export const TopBar: React.FC<TopBarProps> = ({
         </div>
       </div>
 
-      <div className="flex items-center gap-2 shrink-0">
+      <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
         {!authLoading &&
           (user ? (
             <div className="hidden xl:flex items-center gap-2 pr-2 border-r border-slate-200">
@@ -140,7 +161,8 @@ export const TopBar: React.FC<TopBarProps> = ({
         <button
           type="button"
           onClick={onOpenPreview}
-          className="flex items-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors whitespace-nowrap shrink-0"
+          aria-label="Preview Live JSON"
+          className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 text-xs sm:text-sm font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors whitespace-nowrap shrink-0"
         >
           <Code2 className="w-4 h-4 text-slate-500" />
           <span className="hidden sm:inline">Live JSON</span>
@@ -151,14 +173,14 @@ export const TopBar: React.FC<TopBarProps> = ({
           type="button"
           onClick={onPublish}
           disabled={syncStatus === 'publishing' || syncStatus === 'loading'}
-          className="flex items-center gap-1.5 px-3 sm:px-3.5 py-2 text-xs sm:text-sm font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors whitespace-nowrap shrink-0"
+          className="flex items-center gap-1.5 px-2.5 sm:px-3.5 py-2 text-xs sm:text-sm font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors whitespace-nowrap shrink-0"
         >
           <UploadCloud className="w-4 h-4" />
           <span className="hidden sm:inline">
             {syncStatus === 'publishing' ? 'Publishing...' : 'Publish Changes'}
           </span>
           <span className="sm:hidden">
-            {syncStatus === 'publishing' ? 'Pushing...' : 'Publish'}
+            {syncStatus === 'publishing' ? 'Push...' : 'Publish'}
           </span>
         </button>
 

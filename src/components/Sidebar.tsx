@@ -35,6 +35,8 @@ interface SidebarProps {
   hasPin: boolean;
   onOpenEnterpriseSetting: (tab: EnterpriseTabId | null) => void;
   onLockNow: () => void;
+  activeAppName?: string;
+  activePackageId?: string;
 }
 
 const NAV_ITEMS: Array<{
@@ -71,6 +73,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   hasPin,
   onOpenEnterpriseSetting,
   onLockNow,
+  activeAppName = 'Shayari Lok',
+  activePackageId = PACKAGE_ID,
 }) => {
   const content = (
     <div className="flex h-full flex-col justify-between bg-white border-r border-slate-200 w-64">
@@ -79,10 +83,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="min-w-0 flex items-center gap-1.5">
             <div className="min-w-0">
               <div className="font-display text-lg font-bold tracking-tight text-slate-900 truncate">
-                Shayari Lok
+                {activeAppName}
               </div>
               <div className="font-mono text-[11px] text-slate-500 truncate">
-                {organizationName} · {PACKAGE_ID}
+                {organizationName} · {activePackageId}
               </div>
             </div>
             <AdminBrandMenu

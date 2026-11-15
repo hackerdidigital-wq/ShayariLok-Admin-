@@ -56,11 +56,19 @@ test('firestore.rules restricts proxyProfile modes and bounds fallbackNodes', ()
   assert.match(rules, /data\.fallbackNodes\.size\(\)\s*<=\s*10/);
 });
 
-test('firestore.rules validates publicSites schema and blocks list scraping', () => {
+test('firestore.rules validates publicSites schema, requires admin write, and blocks list scraping', () => {
   assert.match(rules, /isValidPublicSite/);
   assert.match(rules, /match \/publicSites\/\{siteId\}\s*\{\s*allow get:\s*if isValidId\(siteId\);\s*allow list:\s*if false;/);
+  assert.match(rules, /isAdmin\(\)\s*&&\s*isOwnerSiteId\(siteId\)/);
   assert.match(rules, /data\.suvichar_list\.size\(\)\s*<=\s*100/);
   assert.match(rules, /data\.photo_shayari_list\.size\(\)\s*<=\s*60/);
+});
+
+test('firestore.rules enforces /admins allowlist and admin-only workspace writes', () => {
+  assert.ok(Object.keys(blueprint.firestore).includes('/admins/{adminUid}'));
+  assert.match(rules, /match \/admins\/\{adminUid\}/);
+  assert.match(rules, /isValidAdminAllowlist/);
+  assert.match(rules, /match \/users\/\{userId\}[\s\S]*isAdmin\(\)\s*&&\s*isOwner\(userId\)/);
 });
 
 test('firestore.rules isolates appUsers PII, blocks spam users from chatting, and enforces 2-participant rooms', () => {
@@ -72,5 +80,6 @@ test('firestore.rules isolates appUsers PII, blocks spam users from chatting, an
   assert.match(rules, /data\.participantIds\.size\(\) == 2/);
   assert.match(rules, /isVerifiedAdminEmail\(\)/);
 });
+
 
 

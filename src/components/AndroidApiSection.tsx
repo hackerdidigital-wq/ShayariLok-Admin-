@@ -22,6 +22,7 @@ import type {
 import {
   ANDROID_SCHEMA_FIELDS,
   buildAndroidEndpoints,
+  generateFirestoreRealtimeListenerCode,
   generateJavaZeroDepClient,
   generateKotlinModelsAndRepo,
   generateManifestAndFirestoreSnippet,
@@ -39,11 +40,13 @@ interface AndroidApiSectionProps {
   githubSettings: GitHubSettings;
   proxySettings: ProxySettings;
   user: User | null;
+  activeSiteId?: string;
+  activePackageId?: string;
   onOpenGitHubSync: () => void;
   onOpenProxySettings: () => void;
 }
 
-type CodeTabId = 'kotlin' | 'java' | 'control' | 'manifest';
+type CodeTabId = 'kotlin' | 'firestore' | 'java' | 'control' | 'manifest';
 
 interface EndpointProbeState {
   status: 'idle' | 'loading' | 'ok' | 'error';
@@ -55,6 +58,8 @@ export const AndroidApiSection: React.FC<AndroidApiSectionProps> = ({
   githubSettings,
   proxySettings,
   user,
+  activeSiteId,
+  activePackageId,
   onOpenGitHubSync,
   onOpenProxySettings,
 }) => {
@@ -62,9 +67,12 @@ export const AndroidApiSection: React.FC<AndroidApiSectionProps> = ({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [probes, setProbes] = useState<Record<string, EndpointProbeState>>({});
 
+  const targetSiteId = activeSiteId || user?.uid;
+  const targetPackageId = activePackageId || PACKAGE_ID;
+
   const endpoints = useMemo(
-    () => buildAndroidEndpoints(githubSettings, proxySettings, user?.uid),
-    [githubSettings, proxySettings, user?.uid]
+    () => buildAndroidEndpoints(githubSettings, proxySettings, targetSiteId),
+    [githubSettings, proxySettings, targetSiteId]
   );
 
   const primaryUrl = useMemo(
@@ -94,6 +102,11 @@ export const AndroidApiSection: React.FC<AndroidApiSectionProps> = ({
         filename: 'ShayariConfig.kt + ConfigRepository.kt',
         code: generateKotlinModelsAndRepo(primaryUrl, fallbackUrl),
       },
+      firestore: {
+        label: 'Firestore Live (100-300ms)',
+        filename: 'FirestoreRealtimeRepository.kt',
+        code: generateFirestoreRealtimeListenerCode(targetSiteId),
+      },
       java: {
         label: 'Java (No Library Needed)',
         filename: 'ShayariConfigManager.java',
@@ -110,7 +123,7 @@ export const AndroidApiSection: React.FC<AndroidApiSectionProps> = ({
         code: generateManifestAndFirestoreSnippet(firestoreUrl),
       },
     }),
-    [primaryUrl, fallbackUrl, firestoreUrl]
+    [primaryUrl, fallbackUrl, firestoreUrl, targetSiteId]
   );
 
   const handleCopy = async (id: string, value: string, label?: string) => {
@@ -495,7 +508,7 @@ export const AndroidApiSection: React.FC<AndroidApiSectionProps> = ({
         <div className="space-y-2">
           <div className="flex items-center justify-between text-xs text-slate-500 font-mono">
             <span>{activeSnippet.filename}</span>
-            <span>Package: {PACKAGE_ID}</span>
+            <span>Package: {targetPackageId}</span>
           </div>
           <pre className="p-4 bg-slate-950 text-slate-100 rounded-xl text-xs font-mono overflow-x-auto leading-relaxed max-h-[460px]">
             <code>{activeSnippet.code}</code>

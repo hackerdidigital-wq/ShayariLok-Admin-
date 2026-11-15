@@ -1,14 +1,18 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Bold,
   Check,
   Copy,
   FolderPlus,
   GitBranch,
   Image as ImageIcon,
+  Italic,
   Loader2,
   Pencil,
   Plus,
+  Quote,
   Search,
+  Sparkles,
   Trash2,
   UploadCloud,
   X,
@@ -35,10 +39,18 @@ import {
   compressImageFileToBase64,
   type CompressedImageResult,
 } from '../utils/imageUpload';
+import {
+  QUICK_CATEGORY_PRESETS,
+  SHAYARI_ORNAMENTS,
+  applyMarkdownWrap,
+  insertAtCursor,
+  parseRichShayariLine,
+  type RichFormatAction,
+} from '../utils/richTextShayari';
 
 interface ShayariManagerSectionProps {
   config: ShayariLokConfig;
-  onUpdate: (patch: Partial<ShayariLokConfig>) => void;
+  onUpdate: (patch: Partial<ShayariLokConfig>, instantSync?: boolean) => void;
   githubSettings: GitHubSettings;
   proxySettings: ProxySettings;
   onAttemptLog?: (log: ProxyAttemptLog) => void;
@@ -88,8 +100,19 @@ export const ShayariManagerSection: React.FC<ShayariManagerSectionProps> = ({
   } | null>(null);
   const [formError, setFormError] = useState<string>('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [visibleLimit, setVisibleLimit] = useState<number>(25);
 
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (
+      assignableCategories.length > 0 &&
+      !assignableCategories.includes(formCategory)
+    ) {
+      setFormCategory(assignableCategories[0]);
+    }
+  }, [assignableCategories, formCategory]);
 
   const nextAutoId = useMemo(
     () => getNextId(config.shayari_list),
@@ -104,6 +127,11 @@ export const ShayariManagerSection: React.FC<ShayariManagerSectionProps> = ({
   const filteredList = useMemo(
     () => filterShayaris(config.shayari_list, selectedCategory, searchQuery),
     [config.shayari_list, selectedCategory, searchQuery]
+  );
+
+  const visibleShayaris = useMemo(
+    () => filteredList.slice(0, visibleLimit),
+    [filteredList, visibleLimit]
   );
 
   const categoryCounts = useMemo(() => {
@@ -264,7 +292,7 @@ export const ShayariManagerSection: React.FC<ShayariManagerSectionProps> = ({
     }
 
     const updatedList = buildNextShayariList(resolvedImageUrl);
-    onUpdate({ shayari_list: updatedList });
+    onUpdate({ shayari_list: updatedList }, true);
 
     if (publishToGitHubAfterSave && onPublishConfigNow) {
       setPublishingConfig(true);
@@ -276,6 +304,51 @@ export const ShayariManagerSection: React.FC<ShayariManagerSectionProps> = ({
     }
 
     resetForm();
+  };
+
+  const handleApplyRichFormat = (action: RichFormatAction) => {
+    const el = textareaRef.current;
+    const start = el?.selectionStart ?? formText.length;
+    const end = el?.selectionEnd ?? formText.length;
+    const { nextValue, nextCursorStart, nextCursorEnd } = applyMarkdownWrap(
+      formText,
+      start,
+      end,
+      action
+    );
+    setFormText(nextValue);
+    if (formError) setFormError('');
+    window.requestAnimationFrame(() => {
+      if (!textareaRef.current) return;
+      textareaRef.current.focus();
+      textareaRef.current.setSelectionRange(nextCursorStart, nextCursorEnd);
+    });
+  };
+
+  const handleInsertOrnament = (token: string) => {
+    const el = textareaRef.current;
+    const start = el?.selectionStart ?? formText.length;
+    const end = el?.selectionEnd ?? formText.length;
+    const { nextValue, nextCursor } = insertAtCursor(formText, start, end, token);
+    setFormText(nextValue);
+    window.requestAnimationFrame(() => {
+      if (!textareaRef.current) return;
+      textareaRef.current.focus();
+      textareaRef.current.setSelectionRange(nextCursor, nextCursor);
+    });
+  };
+
+  const handleQuickAddPresetCategory = (preset: string) => {
+    if (
+      config.categories.some((c) => c.toLowerCase() === preset.toLowerCase())
+    ) {
+      setFormCategory(preset);
+      return;
+    }
+    const updated = ensureAllFirstCategory([...config.categories, preset]);
+    onUpdate({ categories: updated }, true);
+    setFormCategory(preset);
+    setCategoryError('');
   };
 
   const handleSubmitShayari = (e: React.FormEvent) => {
@@ -297,7 +370,7 @@ export const ShayariManagerSection: React.FC<ShayariManagerSectionProps> = ({
 
   const handleDeleteShayari = (id: number) => {
     const updated = config.shayari_list.filter((item) => item.id !== id);
-    onUpdate({ shayari_list: updated });
+    onUpdate({ shayari_list: updated }, true);
     if (editingId === id) {
       resetForm();
     }
@@ -425,18 +498,82 @@ export const ShayariManagerSection: React.FC<ShayariManagerSectionProps> = ({
             </div>
 
             <div>
-              <div className="flex items-center justify-between mb-1.5">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
                 <label
                   htmlFor="shayari-text-input"
                   className="block text-sm font-medium text-slate-700"
                 >
-                  Shayari Text (Hindi / Hinglish, Multi-line)
+                  Rich-Text Shayari Editor (Hindi / Hinglish)
                 </label>
-                <span className="font-mono text-xs text-slate-400 tabular-nums">
-                  {formText.length} chars
+                <span className="font-mono text-xs text-slate-400 tabular-nums whitespace-nowrap">
+                  {formText.length} chars · {formText ? formText.split('\n').length : 0} lines
                 </span>
               </div>
+
+              {/* Rich-Text Toolbar */}
+              <div
+                role="toolbar"
+                aria-label="Shayari text formatting"
+                className="flex flex-wrap items-center gap-1 p-1.5 bg-slate-50 border border-b-0 border-slate-200 rounded-t-lg"
+              >
+                <button
+                  type="button"
+                  onClick={() => handleApplyRichFormat('bold')}
+                  aria-label="Format bold"
+                  title="Bold (**text**)"
+                  className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded hover:bg-slate-100"
+                >
+                  <Bold className="w-3.5 h-3.5" />
+                  <span>Bold</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleApplyRichFormat('italic')}
+                  aria-label="Format italic"
+                  title="Italic (*text*)"
+                  className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded hover:bg-slate-100"
+                >
+                  <Italic className="w-3.5 h-3.5" />
+                  <span>Italic</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleApplyRichFormat('quote')}
+                  aria-label="Format quote"
+                  title="Highlight Quote (> line)"
+                  className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded hover:bg-slate-100"
+                >
+                  <Quote className="w-3.5 h-3.5" />
+                  <span>Quote</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleApplyRichFormat('sparkle')}
+                  aria-label="Highlight with sparkles"
+                  title="Sparkle highlight"
+                  className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-indigo-700 bg-indigo-50 border border-indigo-200 rounded hover:bg-indigo-100"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                </button>
+
+                <span className="h-4 w-px bg-slate-200 mx-0.5" aria-hidden="true" />
+
+                {SHAYARI_ORNAMENTS.map((orn) => (
+                  <button
+                    key={orn.label}
+                    type="button"
+                    onClick={() => handleInsertOrnament(orn.token)}
+                    title={`Insert ${orn.label}`}
+                    aria-label={`Insert ${orn.label}`}
+                    className="px-1.5 py-0.5 text-xs bg-white border border-slate-200 rounded hover:bg-slate-100"
+                  >
+                    {orn.label === 'Divider' ? '✦' : orn.token}
+                  </button>
+                ))}
+              </div>
+
               <textarea
+                ref={textareaRef}
                 id="shayari-text-input"
                 rows={4}
                 value={formText}
@@ -445,8 +582,53 @@ export const ShayariManagerSection: React.FC<ShayariManagerSectionProps> = ({
                   if (formError) setFormError('');
                 }}
                 placeholder={'दिल की बात लफ़्ज़ों में बयाँ हो गई,\nख़ामोशी ही हमारी जुबां हो गई।'}
-                className="w-full px-3.5 py-2.5 text-sm leading-relaxed bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                className="w-full px-3.5 py-2.5 text-sm leading-relaxed bg-white border border-slate-200 rounded-b-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
               />
+
+              {formText.trim() && (
+                <div className="mt-2 p-3 rounded-lg bg-slate-950 text-slate-100 space-y-1.5">
+                  <div className="flex items-center justify-between text-[10px] font-mono text-indigo-300">
+                    <span>LIVE CARD PREVIEW · {formCategory}</span>
+                    <span>— {formAuthor.trim() || 'अज्ञात'}</span>
+                  </div>
+                  <div className="text-xs sm:text-sm leading-relaxed space-y-0.5">
+                    {formText.split('\n').map((line, lIdx) => {
+                      const segments = parseRichShayariLine(line);
+                      return (
+                        <p key={lIdx} className="min-h-[1rem]">
+                          {segments.map((seg, sIdx) => {
+                            if (seg.type === 'bold') {
+                              return (
+                                <strong key={sIdx} className="font-bold text-white">
+                                  {seg.content}
+                                </strong>
+                              );
+                            }
+                            if (seg.type === 'italic') {
+                              return (
+                                <em key={sIdx} className="italic text-indigo-200">
+                                  {seg.content}
+                                </em>
+                              );
+                            }
+                            if (seg.type === 'quote') {
+                              return (
+                                <span
+                                  key={sIdx}
+                                  className="block pl-2.5 border-l-2 border-indigo-400 text-indigo-100"
+                                >
+                                  {seg.content}
+                                </span>
+                              );
+                            }
+                            return <React.Fragment key={sIdx}>{seg.content}</React.Fragment>;
+                          })}
+                        </p>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div>
@@ -474,11 +656,11 @@ export const ShayariManagerSection: React.FC<ShayariManagerSectionProps> = ({
                   <span>Gallery Image Picker (config.json · image_url)</span>
                 </div>
 
-                <div className="flex items-center gap-1 text-[11px] bg-white border border-slate-200 rounded-md p-0.5">
+                <div className="flex items-center gap-1 text-[11px] bg-white border border-slate-200 rounded-md p-0.5 shrink-0">
                   <button
                     type="button"
                     onClick={() => setUrlPreference('jsdelivr')}
-                    className={`px-2 py-0.5 rounded font-medium ${
+                    className={`px-2 py-0.5 rounded font-medium whitespace-nowrap ${
                       urlPreference === 'jsdelivr'
                         ? 'bg-indigo-600 text-white'
                         : 'text-slate-600'
@@ -489,7 +671,7 @@ export const ShayariManagerSection: React.FC<ShayariManagerSectionProps> = ({
                   <button
                     type="button"
                     onClick={() => setUrlPreference('raw')}
-                    className={`px-2 py-0.5 rounded font-medium ${
+                    className={`px-2 py-0.5 rounded font-medium whitespace-nowrap ${
                       urlPreference === 'raw'
                         ? 'bg-indigo-600 text-white'
                         : 'text-slate-600'
@@ -710,6 +892,33 @@ export const ShayariManagerSection: React.FC<ShayariManagerSectionProps> = ({
 
             {showCategoryManager && (
               <div className="space-y-3 pt-2">
+                <div className="space-y-1.5">
+                  <div className="text-[11px] font-medium text-slate-500">
+                    Quick Add Popular Categories:
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {QUICK_CATEGORY_PRESETS.map((preset) => {
+                      const exists = config.categories.some(
+                        (c) => c.toLowerCase() === preset.toLowerCase()
+                      );
+                      return (
+                        <button
+                          key={preset}
+                          type="button"
+                          onClick={() => handleQuickAddPresetCategory(preset)}
+                          className={`px-2.5 py-1 text-[11px] font-medium rounded-md border transition-colors ${
+                            exists
+                              ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                              : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-700'
+                          }`}
+                        >
+                          {exists ? `✓ ${preset}` : `+ ${preset}`}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
                 <form onSubmit={handleAddCategory} className="flex gap-2">
                   <input
                     type="text"
@@ -845,7 +1054,7 @@ export const ShayariManagerSection: React.FC<ShayariManagerSectionProps> = ({
             </div>
           ) : (
             <div className="divide-y divide-slate-200 border border-slate-200 rounded-xl overflow-hidden">
-              {filteredList.map((item) => {
+              {visibleShayaris.map((item) => {
                 const copyTextKey = `copy-sh-${item.id}`;
                 const copyImgKey = `copy-img-${item.id}`;
                 return (
@@ -888,6 +1097,7 @@ export const ShayariManagerSection: React.FC<ShayariManagerSectionProps> = ({
                               src={item.image_url}
                               alt={`Shayari #${item.id} photo`}
                               referrerPolicy="no-referrer"
+                              loading="lazy"
                               className="w-16 h-12 rounded-md object-cover border border-slate-200 bg-slate-100 shrink-0"
                             />
                             <button
@@ -960,6 +1170,18 @@ export const ShayariManagerSection: React.FC<ShayariManagerSectionProps> = ({
                   </article>
                 );
               })}
+
+              {filteredList.length > visibleShayaris.length && (
+                <div className="p-3 bg-slate-50 text-center">
+                  <button
+                    type="button"
+                    onClick={() => setVisibleLimit((prev) => prev + 25)}
+                    className="px-4 py-2 text-xs font-semibold text-indigo-700 bg-white border border-indigo-200 rounded-lg hover:bg-indigo-50"
+                  >
+                    Load More ({filteredList.length - visibleShayaris.length} remaining)
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </section>

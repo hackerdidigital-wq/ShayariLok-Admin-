@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   ANDROID_SCHEMA_FIELDS,
   buildAndroidEndpoints,
+  generateFirestoreRealtimeListenerCode,
   generateJavaZeroDepClient,
   generateKotlinModelsAndRepo,
   generateRemoteControlGateCode,
@@ -72,4 +73,10 @@ test('code generators include all 15 config fields and maintenance/force-update 
   const gate = generateRemoteControlGateCode();
   assert.equal(gate.includes('config.maintenanceMode'), true);
   assert.equal(gate.includes('BuildConfig.VERSION_CODE'), true);
+
+  const firestoreLive = generateFirestoreRealtimeListenerCode('admin_site_app2');
+  assert.equal(firestoreLive.includes('FirestoreRealtimeRepository'), true);
+  assert.equal(firestoreLive.includes('addSnapshotListener'), true);
+  assert.equal(firestoreLive.includes('publicSites'), true);
+  assert.equal(firestoreLive.includes('admin_site_app2'), true);
 });

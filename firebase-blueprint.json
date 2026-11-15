@@ -38,6 +38,38 @@
       },
       "required": ["uid", "email", "displayName", "createdAt", "updatedAt"]
     },
+    "AdminAllowlist": {
+      "title": "AdminAllowlist",
+      "description": "Authorized co-admin account allowlist managed exclusively by primary verified admin.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Authorized admin Firebase Auth UID."
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "minLength": 3,
+          "maxLength": 254,
+          "description": "Verified Google email of authorized admin."
+        },
+        "role": {
+          "type": "string",
+          "enum": ["admin", "editor"],
+          "description": "Assigned administrative role."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Authorization grant server timestamp."
+        }
+      },
+      "required": ["uid", "email", "role", "createdAt"]
+    },
     "RepoConnection": {
       "title": "RepoConnection",
       "description": "GitHub repository metadata (without sensitive PAT) synced for the signed-in admin.",
@@ -725,6 +757,10 @@
     }
   },
   "firestore": {
+    "/admins/{adminUid}": {
+      "schema": { "$ref": "#/entities/AdminAllowlist" },
+      "description": "Verified admin allowlist documents granting write access to Shayari Lok Admin Panel."
+    },
     "/users/{userId}": {
       "schema": { "$ref": "#/entities/AdminUser" },
       "description": "Private user profile document keyed by Firebase Auth UID."
