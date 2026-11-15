@@ -16,5 +16,13 @@
     "All",
     "General"
   ],
-  "shayari_list": []
+  "shayari_list": [
+    {
+      "id": 1,
+      "category": "General",
+      "text": "तेरी आँखों के समंदर में डूबने का मज़ा ही कुछ और है, बाकी दुनिया तो यूँ ही बदनाम है। ❤️",
+      "author": "Love",
+      "image_url": ""
+    }
+  ]
 }
