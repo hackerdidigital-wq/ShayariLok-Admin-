@@ -5,6 +5,7 @@ import {
   Coins,
   GitBranch,
   Globe,
+  Languages,
   LayoutDashboard,
   MessagesSquare,
   RefreshCw,
@@ -23,6 +24,7 @@ interface SidebarProps {
   onSelectSection: (section: AdminSection) => void;
   shayariCount: number;
   notificationCount: number;
+  languageCount?: number;
   unsaved: boolean;
   syncStatus: SyncStatus;
   githubConfigured: boolean;
@@ -47,6 +49,7 @@ const NAV_ITEMS: Array<{
   { id: 'dashboard', label: 'Dashboard & Control', icon: LayoutDashboard },
   { id: 'shayari', label: 'Shayari Manager', icon: BookOpenText },
   { id: 'notifications', label: 'Notifications & Alerts', icon: Bell },
+  { id: 'localization', label: 'Languages & Themes', icon: Languages },
   { id: 'social-monitor', label: 'Users & Live Chats', icon: MessagesSquare },
   { id: 'monetization', label: 'Monetization & Links', icon: Coins },
   { id: 'website', label: 'Live Websites', icon: Globe },
@@ -61,6 +64,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onSelectSection,
   shayariCount,
   notificationCount,
+  languageCount,
   unsaved,
   syncStatus,
   githubConfigured,
@@ -118,7 +122,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 ? shayariCount
                 : item.id === 'notifications'
                   ? notificationCount
-                  : null;
+                  : item.id === 'localization' && typeof languageCount === 'number'
+                    ? languageCount
+                    : null;
             return (
               <button
                 key={item.id}

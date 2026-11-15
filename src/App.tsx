@@ -35,6 +35,7 @@ import {
 import { subscribeSocialMonitorData } from './services/socialFirestore';
 import type {
   AdminSection,
+  AppLocalizationExtras,
   AppUserProfile,
   ChatRoomItem,
   GitHubSettings,
@@ -64,6 +65,11 @@ import {
   saveGitHubSettings,
   saveLocalSha,
 } from './utils/githubApi';
+import {
+  loadAppExtras,
+  normalizeAppExtras,
+  saveAppExtras,
+} from './utils/localizationAndExtras';
 import {
   createManagedAppProfile,
   loadActiveAppId,
@@ -139,6 +145,11 @@ const SocialMonitorSection = lazy(() =>
 const WebsiteHubSection = lazy(() =>
   import('./components/WebsiteHubSection').then((m) => ({
     default: m.WebsiteHubSection,
+  }))
+);
+const LocalizationStudioSection = lazy(() =>
+  import('./components/LocalizationStudioSection').then((m) => ({
+    default: m.LocalizationStudioSection,
   }))
 );
 
@@ -217,6 +228,9 @@ export default function App() {
   const [websiteContent, setWebsiteContent] = useState<WebsiteContentSettings>(() =>
     loadWebsiteContent()
   );
+  const [appExtras, setAppExtras] = useState<AppLocalizationExtras>(() =>
+    loadAppExtras(activeApp.id)
+  );
   const [liveSyncing, setLiveSyncing] = useState(false);
   const [realtimeStatus, setRealtimeStatus] = useState<
     'live' | 'syncing' | 'local'
@@ -246,6 +260,8 @@ export default function App() {
   const initialAutoSyncedRef = useRef(false);
   const configRef = useRef(config);
   configRef.current = config;
+  const appExtrasRef = useRef(appExtras);
+  appExtrasRef.current = appExtras;
 
   const canEnterLocalSandbox = useMemo(() => {
     if (typeof window === 'undefined') return false;
@@ -374,9 +390,10 @@ export default function App() {
     if (enterprise.autoSaveDraft) {
       saveAppDraft(activeApp.id, config);
     }
+    saveAppExtras(activeApp.id, appExtras);
     saveWebsiteContent(websiteContent);
     broadcastLiveWebsiteState(config, websiteContent, enterprise);
-  }, [activeApp.id, config, websiteContent, enterprise]);
+  }, [activeApp.id, config, appExtras, websiteContent, enterprise]);
 
   // Fast 120ms debounced Firestore real-time mirror when signed in as verified admin
   useEffect(() => {
@@ -395,7 +412,8 @@ export default function App() {
         websiteContent,
         enterprise.organizationName,
         enterprise.supportEmail,
-        activeSiteId
+        activeSiteId,
+        appExtras
       )
         .then(() => {
           const elapsed =
@@ -415,6 +433,7 @@ export default function App() {
     isAuthorizedAdmin,
     activeSiteId,
     config,
+    appExtras,
     websiteContent,
     enterprise.organizationName,
     enterprise.supportEmail,
@@ -648,7 +667,10 @@ export default function App() {
   }, [settings, proxySettings, appendAttemptLog, handleSyncFromGitHub]);
 
   const pushImmediateCloudSync = useCallback(
-    async (nextConfig: ShayariLokConfig) => {
+    async (
+      nextConfig: ShayariLokConfig,
+      overrideExtras?: AppLocalizationExtras
+    ) => {
       if (!user || !isAuthorizedAdmin || !activeSiteId) return;
       setRealtimeStatus('syncing');
       const startedAt =
@@ -660,7 +682,8 @@ export default function App() {
           websiteContent,
           enterprise.organizationName,
           enterprise.supportEmail,
-          activeSiteId
+          activeSiteId,
+          overrideExtras ?? appExtrasRef.current
         );
         const elapsed =
           typeof performance !== 'undefined'
@@ -693,6 +716,18 @@ export default function App() {
     [pushImmediateCloudSync]
   );
 
+  const handleUpdateExtras = useCallback(
+    (next: AppLocalizationExtras, instantSync?: boolean) => {
+      const safe = normalizeAppExtras(next);
+      setAppExtras(safe);
+      saveAppExtras(activeApp.id, safe);
+      if (instantSync) {
+        void pushImmediateCloudSync(configRef.current, safe);
+      }
+    },
+    [activeApp.id, pushImmediateCloudSync]
+  );
+
   const handleSelectApp = useCallback(
     (nextAppId: string) => {
       if (nextAppId === activeAppId) return;
@@ -700,12 +735,14 @@ export default function App() {
       if (!target) return;
 
       saveAppDraft(activeAppId, configRef.current);
+      saveAppExtras(activeAppId, appExtrasRef.current);
       setActiveAppId(nextAppId);
       saveActiveAppId(nextAppId);
 
       const nextDraft = loadAppDraft(target);
       setConfig(nextDraft);
       setBaselineConfig(nextDraft);
+      setAppExtras(loadAppExtras(target.id));
       setSettings((prev) => {
         const updated: GitHubSettings = {
           ...prev,
@@ -723,6 +760,7 @@ export default function App() {
   const handleCreateApp = useCallback(
     (input: { name: string; packageId: string; githubPath: string }) => {
       saveAppDraft(activeAppId, configRef.current);
+      saveAppExtras(activeAppId, appExtrasRef.current);
       const created = createManagedAppProfile(input, managedApps);
       const nextApps = [...managedApps, created];
       setManagedApps(nextApps);
@@ -734,6 +772,9 @@ export default function App() {
       saveAppDraft(created.id, initialDraft);
       setConfig(initialDraft);
       setBaselineConfig(initialDraft);
+      const initialExtras = loadAppExtras(created.id);
+      saveAppExtras(created.id, initialExtras);
+      setAppExtras(initialExtras);
       setSettings((prev) => {
         const updated: GitHubSettings = {
           ...prev,
@@ -765,6 +806,7 @@ export default function App() {
         const fallbackDraft = loadAppDraft(fallback);
         setConfig(fallbackDraft);
         setBaselineConfig(fallbackDraft);
+        setAppExtras(loadAppExtras(fallback.id));
         setSettings((prev) => {
           const updated: GitHubSettings = {
             ...prev,
@@ -1135,7 +1177,8 @@ export default function App() {
         websiteContent,
         enterprise.organizationName,
         enterprise.supportEmail,
-        activeSiteId
+        activeSiteId,
+        appExtrasRef.current
       );
       const elapsed =
         typeof performance !== 'undefined'
@@ -1363,6 +1406,7 @@ export default function App() {
         onSelectSection={navigateSection}
         shayariCount={config.shayari_list.length}
         notificationCount={config.notifications.length}
+        languageCount={appExtras.supported_languages.filter((l) => l.enabled).length}
         unsaved={unsaved}
         syncStatus={syncStatus}
         githubConfigured={githubReady}
@@ -1446,6 +1490,7 @@ export default function App() {
             <DashboardSection
               config={config}
               activeApp={activeApp}
+              extras={appExtras}
               appUsers={effectiveAppUsers}
               socialEdges={effectiveSocialEdges}
               chatRooms={effectiveChatRooms}
@@ -1482,6 +1527,26 @@ export default function App() {
               liveSyncing={liveSyncing}
               onSyncLiveWebsiteNow={handleSyncLiveWebsiteNow}
             />
+          )}
+
+          {activeSection === 'localization' && (
+            <Suspense
+              fallback={
+                <div className="bg-white border border-slate-200 rounded-xl p-8 text-center text-xs text-slate-500">
+                  Loading Languages, Countries &amp; Theme Studio...
+                </div>
+              }
+            >
+              <LocalizationStudioSection
+                config={config}
+                extras={appExtras}
+                onUpdateExtras={handleUpdateExtras}
+                user={user}
+                activeSiteId={activeSiteId || undefined}
+                realtimeStatus={realtimeStatus}
+                onSyncLiveNow={handleSyncLiveWebsiteNow}
+              />
+            </Suspense>
           )}
 
           {activeSection === 'social-monitor' && (
@@ -1539,6 +1604,7 @@ export default function App() {
             >
               <AndroidApiSection
                 config={config}
+                extras={appExtras}
                 githubSettings={settings}
                 proxySettings={proxySettings}
                 user={user}

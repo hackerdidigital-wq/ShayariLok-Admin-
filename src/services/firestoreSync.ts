@@ -15,6 +15,7 @@ import {
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import type {
+  AppLocalizationExtras,
   GitHubSettings,
   ProxySettings,
   PublishLogEntry,
@@ -22,6 +23,7 @@ import type {
   WebsiteContentSettings,
 } from '../types/config';
 import { normalizeConfig, prepareDraftForFirestore } from '../utils/configHelpers';
+import { normalizeAppExtras } from '../utils/localizationAndExtras';
 import {
   normalizeProxySettings,
   sanitizeProxySettingsForFirestore,
@@ -291,6 +293,7 @@ export interface PublicSiteSnapshot {
   websiteContent: WebsiteContentSettings;
   organizationName: string;
   supportEmail: string;
+  extras?: AppLocalizationExtras;
 }
 
 export async function publishPublicWebsiteState(
@@ -299,7 +302,8 @@ export async function publishPublicWebsiteState(
   websiteContent: WebsiteContentSettings,
   organizationName: string,
   supportEmail: string,
-  siteIdOverride?: string
+  siteIdOverride?: string,
+  extras?: AppLocalizationExtras
 ): Promise<void> {
   if (!db) throw new Error('Firestore is not available.');
   const targetSiteId = siteIdOverride?.trim() || uid;
@@ -309,7 +313,8 @@ export async function publishPublicWebsiteState(
     config,
     websiteContent,
     organizationName,
-    supportEmail
+    supportEmail,
+    extras
   );
   try {
     await setDoc(ref, {
@@ -351,6 +356,10 @@ export function subscribePublicWebsiteState(
         }),
         organizationName: String(d.organizationName ?? 'CyberKing Studios'),
         supportEmail: String(d.supportEmail ?? 'support@shayarilok.in'),
+        extras:
+          d.supported_languages || d.supported_countries || d.dynamic_theme
+            ? normalizeAppExtras(d)
+            : undefined,
       });
     },
     (error) => {

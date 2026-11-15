@@ -56,3 +56,55 @@ test('preparePublicSiteForFirestore strips internal ad unit IDs and bounds array
     true
   );
 });
+
+test('preparePublicSiteForFirestore with extras and edge-case inputs satisfies all Firestore publicSites bounds', async () => {
+  const { DEFAULT_APP_EXTRAS } = await import('./localizationAndExtras');
+  const dirtyConfig = {
+    ...DEFAULT_CONFIG,
+    app_name: '   ',
+    latest_version_code: 1.9,
+    shayari_list: [
+      {
+        id: 7.8,
+        category: 'Love',
+        text: 'A'.repeat(2500),
+        author: 'B'.repeat(120),
+        image_url: 'https://cdn.jsdelivr.net/gh/u/r@main/' + 'x'.repeat(600),
+      },
+    ],
+  };
+
+  const payload = preparePublicSiteForFirestore(
+    dirtyConfig,
+    DEFAULT_WEBSITE_CONTENT,
+    '   ',
+    '',
+    {
+      ...DEFAULT_APP_EXTRAS,
+      dynamic_theme: {
+        ...DEFAULT_APP_EXTRAS.dynamic_theme,
+        cardCornerRadius: 18.7,
+      },
+      engagement_tools: {
+        ...DEFAULT_APP_EXTRAS.engagement_tools,
+        dailyShayariGoal: 9.4,
+      },
+    }
+  );
+
+  assert.equal(payload.app_name, 'Shayari Lok');
+  assert.equal(payload.organizationName, 'CyberKing Studios');
+  assert.equal(payload.categories[0], 'All');
+  assert.equal(Number.isInteger(payload.latest_version_code), true);
+  assert.equal(Number.isInteger(payload.shayari_list[0].id), true);
+  assert.equal(payload.shayari_list[0].text.length <= 2000, true);
+  assert.equal(payload.shayari_list[0].image_url.length <= 500, true);
+  assert.equal('dynamic_theme' in payload, true);
+  if ('dynamic_theme' in payload) {
+    assert.equal(Number.isInteger(payload.dynamic_theme.cardCornerRadius), true);
+    assert.equal(Number.isInteger(payload.engagement_tools.dailyShayariGoal), true);
+    assert.equal(payload.default_language_code.length >= 2, true);
+    assert.equal(payload.default_country_code.length >= 2, true);
+  }
+});
+

@@ -30,6 +30,7 @@ const ADMIN_SECTIONS: ReadonlyArray<Exclude<AdminSection, 'settings'>> = [
   'dashboard',
   'shayari',
   'notifications',
+  'localization',
   'monetization',
   'android-api',
   'social-monitor',

@@ -15,6 +15,7 @@ import {
   Smartphone,
 } from 'lucide-react';
 import type {
+  AppLocalizationExtras,
   GitHubSettings,
   ProxySettings,
   ShayariLokConfig,
@@ -22,6 +23,7 @@ import type {
 import {
   ANDROID_SCHEMA_FIELDS,
   buildAndroidEndpoints,
+  generateAndroidLocaleSyncCode,
   generateFirestoreRealtimeListenerCode,
   generateJavaZeroDepClient,
   generateKotlinModelsAndRepo,
@@ -33,10 +35,12 @@ import {
   type AndroidEndpointItem,
 } from '../utils/androidIntegration';
 import { PACKAGE_ID, serializeConfigJson } from '../utils/configHelpers';
+import { serializeFullConfigWithExtras } from '../utils/localizationAndExtras';
 import { copyTextWithFeedback } from '../utils/clipboardToast';
 
 interface AndroidApiSectionProps {
   config: ShayariLokConfig;
+  extras?: AppLocalizationExtras;
   githubSettings: GitHubSettings;
   proxySettings: ProxySettings;
   user: User | null;
@@ -46,7 +50,13 @@ interface AndroidApiSectionProps {
   onOpenProxySettings: () => void;
 }
 
-type CodeTabId = 'kotlin' | 'firestore' | 'java' | 'control' | 'manifest';
+type CodeTabId =
+  | 'kotlin'
+  | 'firestore'
+  | 'locale'
+  | 'java'
+  | 'control'
+  | 'manifest';
 
 interface EndpointProbeState {
   status: 'idle' | 'loading' | 'ok' | 'error';
@@ -55,6 +65,7 @@ interface EndpointProbeState {
 
 export const AndroidApiSection: React.FC<AndroidApiSectionProps> = ({
   config,
+  extras,
   githubSettings,
   proxySettings,
   user,
@@ -64,6 +75,7 @@ export const AndroidApiSection: React.FC<AndroidApiSectionProps> = ({
   onOpenProxySettings,
 }) => {
   const [activeTab, setActiveTab] = useState<CodeTabId>('kotlin');
+  const [jsonFormatMode, setJsonFormatMode] = useState<'base' | 'extended'>('base');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [probes, setProbes] = useState<Record<string, EndpointProbeState>>({});
 
@@ -86,7 +98,12 @@ export const AndroidApiSection: React.FC<AndroidApiSectionProps> = ({
   const firestoreUrl =
     endpoints.find((e) => e.id === 'firestore-rest')?.url ?? '';
 
-  const liveJson = useMemo(() => serializeConfigJson(config), [config]);
+  const liveJson = useMemo(() => {
+    if (jsonFormatMode === 'extended' && extras) {
+      return serializeFullConfigWithExtras(config, extras);
+    }
+    return serializeConfigJson(config);
+  }, [config, extras, jsonFormatMode]);
   const stats = useMemo(() => summarizeConfigStats(config), [config]);
   const repoConfigured = Boolean(
     githubSettings.owner.trim() && githubSettings.repo.trim()
@@ -106,6 +123,11 @@ export const AndroidApiSection: React.FC<AndroidApiSectionProps> = ({
         label: 'Firestore Live (100-300ms)',
         filename: 'FirestoreRealtimeRepository.kt',
         code: generateFirestoreRealtimeListenerCode(targetSiteId),
+      },
+      locale: {
+        label: 'Languages, Country & Theme SDK',
+        filename: 'LocaleSettingsManager.kt',
+        code: generateAndroidLocaleSyncCode(targetSiteId),
       },
       java: {
         label: 'Java (No Library Needed)',
@@ -556,32 +578,60 @@ export const AndroidApiSection: React.FC<AndroidApiSectionProps> = ({
         </section>
 
         <section className="lg:col-span-6 bg-white border border-slate-200 rounded-xl p-6 flex flex-col space-y-4">
-          <div className="flex items-center justify-between gap-2 pb-3 border-b border-slate-100">
+          <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-100">
             <div className="flex items-center gap-2">
               <KeyRound className="w-4 h-4 text-indigo-600" />
               <h3 className="font-display text-base font-bold text-slate-900">
                 Live Generated <code className="font-mono text-sm">config.json</code>
               </h3>
             </div>
-            <button
-              type="button"
-              onClick={() =>
-                void handleCopy('schema-json', liveJson, 'config.json')
-              }
-              className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200"
-            >
-              {copiedId === 'schema-json' ? (
-                <>
-                  <Check className="w-3 h-3 text-emerald-700" />
-                  <span className="text-emerald-700">Copied Successfully!</span>
-                </>
-              ) : (
-                <>
-                  <Copy className="w-3 h-3" />
-                  <span>Copy</span>
-                </>
+            <div className="flex items-center gap-2">
+              {extras && (
+                <div className="inline-flex bg-slate-100 p-0.5 rounded-lg text-[11px] font-medium">
+                  <button
+                    type="button"
+                    onClick={() => setJsonFormatMode('base')}
+                    className={`px-2 py-1 rounded-md ${
+                      jsonFormatMode === 'base'
+                        ? 'bg-white text-slate-900 shadow-xs'
+                        : 'text-slate-600'
+                    }`}
+                  >
+                    15-Field Base
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setJsonFormatMode('extended')}
+                    className={`px-2 py-1 rounded-md ${
+                      jsonFormatMode === 'extended'
+                        ? 'bg-white text-slate-900 shadow-xs'
+                        : 'text-slate-600'
+                    }`}
+                  >
+                    + Lang/Theme
+                  </button>
+                </div>
               )}
-            </button>
+              <button
+                type="button"
+                onClick={() =>
+                  void handleCopy('schema-json', liveJson, 'config.json')
+                }
+                className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200"
+              >
+                {copiedId === 'schema-json' ? (
+                  <>
+                    <Check className="w-3 h-3 text-emerald-700" />
+                    <span className="text-emerald-700">Copied Successfully!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3 h-3" />
+                    <span>Copy</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
 
           <pre className="flex-1 p-4 bg-slate-950 text-emerald-300 rounded-xl text-xs font-mono overflow-auto leading-relaxed max-h-[520px]">

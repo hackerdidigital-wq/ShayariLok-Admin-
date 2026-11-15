@@ -565,6 +565,128 @@ class FirestoreRealtimeRepository(
 }`;
 }
 
+export function generateAndroidLocaleSyncCode(
+  siteId?: string | null
+): string {
+  const effectiveSiteId = siteId?.trim() || 'YOUR_ADMIN_UID';
+  return `// LocaleSettingsManager.kt — Real-Time Multi-Language, Country & Dynamic Theme Sync
+package com.cyberking.shayarilok.localization
+
+import android.content.Context
+import android.graphics.Color
+import android.view.View
+import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.os.LocaleListCompat
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ListenerRegistration
+
+data class RemoteLanguage(
+    val code: String = "hi",
+    val name: String = "Hindi",
+    val nativeName: String = "हिन्दी",
+    val flag: String = "🇮🇳",
+    val rtl: Boolean = false,
+    val enabled: Boolean = true,
+    val uiLabels: Map<String, String> = emptyMap()
+)
+
+data class RemoteCountry(
+    val code: String = "IN",
+    val name: String = "India",
+    val flag: String = "🇮🇳",
+    val currency: String = "INR",
+    val enabled: Boolean = true
+)
+
+class LocaleSettingsManager(
+    private val context: Context,
+    private val db: FirebaseFirestore = FirebaseFirestore.getInstance("${firebaseAppletConfig.firestoreDatabaseId}")
+) {
+    private var registration: ListenerRegistration? = null
+    private val prefs = context.getSharedPreferences("shayarilok_locale", Context.MODE_PRIVATE)
+
+    fun observeLiveLanguagesAndTheme(
+        onUpdate: (
+            languages: List<RemoteLanguage>,
+            countries: List<RemoteCountry>,
+            primaryColorHex: String,
+            accentColorHex: String
+        ) -> Unit
+    ) {
+        registration?.remove()
+        registration = db.collection("publicSites")
+            .document("${effectiveSiteId}")
+            .addSnapshotListener { snap, _ ->
+                val data = snap?.data ?: return@addSnapshotListener
+
+                val rawLangs = (data["supported_languages"] as? List<*>) ?: emptyList<Any>()
+                val languages = rawLangs.mapNotNull { item ->
+                    val map = item as? Map<*, *> ?: return@mapNotNull null
+                    val enabled = map["enabled"] as? Boolean ?: true
+                    if (!enabled) return@mapNotNull null
+                    val labelsMap = (map["uiLabels"] as? Map<*, *>)
+                        ?.entries
+                        ?.associate { it.key.toString() to it.value.toString() }
+                        ?: emptyMap()
+                    RemoteLanguage(
+                        code = map["code"]?.toString() ?: "hi",
+                        name = map["name"]?.toString() ?: "Hindi",
+                        nativeName = map["nativeName"]?.toString() ?: "हिन्दी",
+                        flag = map["flag"]?.toString() ?: "🌐",
+                        rtl = map["rtl"] as? Boolean ?: false,
+                        enabled = true,
+                        uiLabels = labelsMap
+                    )
+                }
+
+                val rawCountries = (data["supported_countries"] as? List<*>) ?: emptyList<Any>()
+                val countries = rawCountries.mapNotNull { item ->
+                    val map = item as? Map<*, *> ?: return@mapNotNull null
+                    val enabled = map["enabled"] as? Boolean ?: true
+                    if (!enabled) return@mapNotNull null
+                    RemoteCountry(
+                        code = map["code"]?.toString() ?: "IN",
+                        name = map["name"]?.toString() ?: "India",
+                        flag = map["flag"]?.toString() ?: "🏳️",
+                        currency = map["currency"]?.toString() ?: "INR",
+                        enabled = true
+                    )
+                }
+
+                val dynamicTheme = data["dynamic_theme"] as? Map<*, *>
+                val primaryHex = dynamicTheme?.get("primaryColor")?.toString() ?: "#4f46e5"
+                val accentHex = dynamicTheme?.get("accentColor")?.toString() ?: "#e11d48"
+
+                onUpdate(languages, countries, primaryHex, accentHex)
+            }
+    }
+
+    /**
+     * Call when user taps any language in the User App Settings screen.
+     * Switches Android app locale + layout direction + localized UI labels immediately.
+     */
+    fun selectUserLanguage(language: RemoteLanguage, rootView: View) {
+        prefs.edit().putString("selected_lang_code", language.code).apply()
+        rootView.layoutDirection = if (language.rtl) {
+            View.LAYOUT_DIRECTION_RTL
+        } else {
+            View.LAYOUT_DIRECTION_LTR
+        }
+        AppCompatDelegate.setApplicationLocales(
+            LocaleListCompat.forLanguageTags(language.code)
+        )
+    }
+
+    fun parseThemeColor(hex: String, fallback: Int): Int =
+        try { Color.parseColor(hex) } catch (_: Exception) { fallback }
+
+    fun stop() {
+        registration?.remove()
+        registration = null
+    }
+}`;
+}
+
 export function summarizeConfigStats(config: ShayariLokConfig): {
   totalBytes: number;
   shayariCount: number;

@@ -473,6 +473,38 @@
           "type": "array",
           "description": "Bounded list of Photo Shayari overlay cards."
         },
+        "default_language_code": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 10,
+          "description": "Default app language ISO code synced from Admin Panel."
+        },
+        "default_country_code": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 10,
+          "description": "Default country/region ISO code synced from Admin Panel."
+        },
+        "supported_languages": {
+          "type": "array",
+          "description": "Bounded list (max 40) of live languages and translated UI strings for Android User App."
+        },
+        "supported_countries": {
+          "type": "array",
+          "description": "Bounded list (max 60) of supported countries, dial codes, currencies, and default language mappings."
+        },
+        "dynamic_theme": {
+          "type": "object",
+          "description": "Real-time Android UI theme colors, dark mode, corner radius, and font scale controlled by admin."
+        },
+        "scheduled_notifications": {
+          "type": "array",
+          "description": "Bounded list (max 50) of language- and country-targeted scheduled push notifications."
+        },
+        "engagement_tools": {
+          "type": "object",
+          "description": "Daily streak, mood filters, 1-tap WhatsApp share, and interactive community poll settings."
+        },
         "updatedAt": {
           "type": "string",
           "format": "date-time",

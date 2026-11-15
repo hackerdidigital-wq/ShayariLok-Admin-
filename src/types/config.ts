@@ -55,6 +55,7 @@ export type AdminSection =
   | 'dashboard'
   | 'shayari'
   | 'notifications'
+  | 'localization'
   | 'monetization'
   | 'android-api'
   | 'social-monitor'
@@ -216,5 +217,82 @@ export interface ChatMessageItem {
   createdAt: string;
 }
 
+export interface LanguageUiLabels {
+  appTitle: string;
+  homeTab: string;
+  categoriesTab: string;
+  favoritesTab: string;
+  settingsTab: string;
+  languageLabel: string;
+  shareButton: string;
+  copyButton: string;
+}
 
+export interface LanguageItem {
+  code: string;
+  name: string;
+  nativeName: string;
+  flag: string;
+  rtl: boolean;
+  enabled: boolean;
+  uiLabels: LanguageUiLabels;
+}
 
+export interface CountryItem {
+  code: string;
+  name: string;
+  flag: string;
+  dialCode: string;
+  currency: string;
+  defaultLanguageCode: string;
+  enabled: boolean;
+}
+
+export type ThemePresetId =
+  | 'indigo_editorial'
+  | 'royal_midnight'
+  | 'emerald_sufi'
+  | 'rose_shayari';
+
+export interface DynamicThemeConfig {
+  presetId: ThemePresetId;
+  primaryColor: string;
+  accentColor: string;
+  surfaceStyle: 'clean_card' | 'glass_soft' | 'minimal_outline' | 'dark_ink';
+  cardCornerRadius: number;
+  darkModeEnabled: boolean;
+  gradientEnabled: boolean;
+  fontScale: 'compact' | 'normal' | 'large';
+}
+
+export interface ScheduledNotificationItem {
+  id: string;
+  title: string;
+  message: string;
+  targetLanguage: string;
+  targetCountry: string;
+  scheduledFor: string;
+  repeatMode: 'once' | 'daily' | 'weekly';
+  status: 'scheduled' | 'paused';
+}
+
+export interface EngagementToolsConfig {
+  dailyStreakEnabled: boolean;
+  moodFilterEnabled: boolean;
+  oneTapWhatsAppShare: boolean;
+  confettiOnFavorite: boolean;
+  dailyShayariGoal: number;
+  pollQuestion: string;
+  pollOptionA: string;
+  pollOptionB: string;
+}
+
+export interface AppLocalizationExtras {
+  default_language_code: string;
+  default_country_code: string;
+  supported_languages: LanguageItem[];
+  supported_countries: CountryItem[];
+  dynamic_theme: DynamicThemeConfig;
+  scheduled_notifications: ScheduledNotificationItem[];
+  engagement_tools: EngagementToolsConfig;
+}

@@ -43,9 +43,9 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isVerified() && (
-        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
-        || request.auth.token.email == 'bamniyad749@gmail.com'
+      return isVerifiedAdminEmail() || (
+        isVerified()
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid))
       );
     }
 
@@ -178,7 +178,11 @@ service cloud.firestore {
           'ads_enabled', 'announcement_title', 'announcement_message',
           'categories', 'notifications', 'shayari_list',
           'heroHeadline', 'heroSubheadline', 'websiteControls',
-          'suvichar_list', 'photo_shayari_list', 'updatedAt'
+          'suvichar_list', 'photo_shayari_list',
+          'default_language_code', 'default_country_code',
+          'supported_languages', 'supported_countries',
+          'dynamic_theme', 'scheduled_notifications', 'engagement_tools',
+          'updatedAt'
         ])
         && data.ownerId is string && data.ownerId == request.auth.uid && isValidId(data.ownerId)
         && data.organizationName is string && data.organizationName.size() >= 1 && data.organizationName.size() <= 120
@@ -219,6 +223,51 @@ service cloud.firestore {
         && (data.suvichar_list.size() == 0 || data.suvichar_list[0] is map)
         && data.photo_shayari_list is list && data.photo_shayari_list.size() <= 60
         && (data.photo_shayari_list.size() == 0 || data.photo_shayari_list[0] is map)
+        && (!('default_language_code' in data) || (data.default_language_code is string && data.default_language_code.size() >= 2 && data.default_language_code.size() <= 10))
+        && (!('default_country_code' in data) || (data.default_country_code is string && data.default_country_code.size() >= 2 && data.default_country_code.size() <= 10))
+        && (!('supported_languages' in data) || (data.supported_languages is list && data.supported_languages.size() <= 40 && (data.supported_languages.size() == 0 || data.supported_languages[0] is map)))
+        && (!('supported_countries' in data) || (data.supported_countries is list && data.supported_countries.size() <= 60 && (data.supported_countries.size() == 0 || data.supported_countries[0] is map)))
+        && (!('dynamic_theme' in data) || (
+          data.dynamic_theme is map
+          && data.dynamic_theme.keys().hasAll([
+            'presetId', 'primaryColor', 'accentColor', 'surfaceStyle',
+            'cardCornerRadius', 'darkModeEnabled', 'gradientEnabled', 'fontScale'
+          ])
+          && data.dynamic_theme.keys().hasOnly([
+            'presetId', 'primaryColor', 'accentColor', 'surfaceStyle',
+            'cardCornerRadius', 'darkModeEnabled', 'gradientEnabled', 'fontScale'
+          ])
+          && data.dynamic_theme.presetId is string && data.dynamic_theme.presetId.size() <= 40
+          && data.dynamic_theme.primaryColor is string && data.dynamic_theme.primaryColor.size() <= 20
+          && data.dynamic_theme.accentColor is string && data.dynamic_theme.accentColor.size() <= 20
+          && data.dynamic_theme.surfaceStyle is string && data.dynamic_theme.surfaceStyle.size() <= 30
+          && data.dynamic_theme.cardCornerRadius is int && data.dynamic_theme.cardCornerRadius >= 0 && data.dynamic_theme.cardCornerRadius <= 36
+          && data.dynamic_theme.darkModeEnabled is bool
+          && data.dynamic_theme.gradientEnabled is bool
+          && data.dynamic_theme.fontScale is string && data.dynamic_theme.fontScale.size() <= 20
+        ))
+        && (!('scheduled_notifications' in data) || (data.scheduled_notifications is list && data.scheduled_notifications.size() <= 50 && (data.scheduled_notifications.size() == 0 || data.scheduled_notifications[0] is map)))
+        && (!('engagement_tools' in data) || (
+          data.engagement_tools is map
+          && data.engagement_tools.keys().hasAll([
+            'dailyStreakEnabled', 'moodFilterEnabled', 'oneTapWhatsAppShare',
+            'confettiOnFavorite', 'dailyShayariGoal', 'pollQuestion',
+            'pollOptionA', 'pollOptionB'
+          ])
+          && data.engagement_tools.keys().hasOnly([
+            'dailyStreakEnabled', 'moodFilterEnabled', 'oneTapWhatsAppShare',
+            'confettiOnFavorite', 'dailyShayariGoal', 'pollQuestion',
+            'pollOptionA', 'pollOptionB'
+          ])
+          && data.engagement_tools.dailyStreakEnabled is bool
+          && data.engagement_tools.moodFilterEnabled is bool
+          && data.engagement_tools.oneTapWhatsAppShare is bool
+          && data.engagement_tools.confettiOnFavorite is bool
+          && data.engagement_tools.dailyShayariGoal is int && data.engagement_tools.dailyShayariGoal >= 1 && data.engagement_tools.dailyShayariGoal <= 50
+          && data.engagement_tools.pollQuestion is string && data.engagement_tools.pollQuestion.size() <= 200
+          && data.engagement_tools.pollOptionA is string && data.engagement_tools.pollOptionA.size() <= 80
+          && data.engagement_tools.pollOptionB is string && data.engagement_tools.pollOptionB.size() <= 80
+        ))
         && data.updatedAt is timestamp;
     }
 
@@ -323,7 +372,7 @@ service cloud.firestore {
         && isAdmin()
         && isOwnerSiteId(siteId)
         && isValidPublicSite(incoming())
-        && incoming().ownerId == existing().ownerId
+        && (!('ownerId' in existing()) || incoming().ownerId == existing().ownerId)
         && incoming().updatedAt == request.time;
       allow delete: if isValidId(siteId) && isAdmin() && isOwnerSiteId(siteId);
     }

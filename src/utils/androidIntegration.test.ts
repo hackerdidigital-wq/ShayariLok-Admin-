@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   ANDROID_SCHEMA_FIELDS,
   buildAndroidEndpoints,
+  generateAndroidLocaleSyncCode,
   generateFirestoreRealtimeListenerCode,
   generateJavaZeroDepClient,
   generateKotlinModelsAndRepo,
@@ -79,4 +80,11 @@ test('code generators include all 15 config fields and maintenance/force-update 
   assert.equal(firestoreLive.includes('addSnapshotListener'), true);
   assert.equal(firestoreLive.includes('publicSites'), true);
   assert.equal(firestoreLive.includes('admin_site_app2'), true);
+
+  const localeSync = generateAndroidLocaleSyncCode('admin_site_app2');
+  assert.equal(localeSync.includes('LocaleSettingsManager'), true);
+  assert.equal(localeSync.includes('supported_languages'), true);
+  assert.equal(localeSync.includes('supported_countries'), true);
+  assert.equal(localeSync.includes('setApplicationLocales'), true);
+  assert.equal(localeSync.includes('dynamic_theme'), true);
 });

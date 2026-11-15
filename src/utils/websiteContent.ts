@@ -1,4 +1,5 @@
 import type {
+  AppLocalizationExtras,
   PhotoShayariCard,
   PhotoShayariThemeId,
   ShayariLokConfig,
@@ -12,6 +13,7 @@ import {
   normalizeEnterpriseSettings,
   type EnterpriseSettings,
 } from './enterpriseSettings';
+import { normalizeAppExtras } from './localizationAndExtras';
 
 const WEBSITE_CONTENT_KEY = 'shayari_lok_website_content_v1';
 export const LIVE_SYNC_CHANNEL_NAME = 'shayari_lok_live_sync';
@@ -356,16 +358,17 @@ export function preparePublicSiteForFirestore(
   config: ShayariLokConfig,
   websiteContent: WebsiteContentSettings,
   organizationName: string,
-  supportEmail: string
+  supportEmail: string,
+  extras?: AppLocalizationExtras
 ) {
   const safeConfig = normalizeConfig(config);
   const safeWeb = normalizeWebsiteContent(websiteContent);
-  return {
+  const base = {
     organizationName:
       (organizationName || 'CyberKing Studios').trim().slice(0, 120) ||
       'CyberKing Studios',
     supportEmail: (supportEmail || 'support@shayarilok.in').trim().slice(0, 254),
-    app_name: safeConfig.app_name.slice(0, 80) || 'Shayari Lok',
+    app_name: safeConfig.app_name.trim().slice(0, 80) || 'Shayari Lok',
     latest_version_code: Math.min(
       9999999,
       Math.max(1, Math.trunc(safeConfig.latest_version_code || 1))
@@ -379,8 +382,20 @@ export function preparePublicSiteForFirestore(
     announcement_title: safeConfig.announcement_title.slice(0, 200),
     announcement_message: safeConfig.announcement_message.slice(0, 1000),
     categories: safeConfig.categories.slice(0, 50),
-    notifications: safeConfig.notifications.slice(0, 100),
-    shayari_list: safeConfig.shayari_list.slice(0, 500),
+    notifications: safeConfig.notifications.slice(0, 100).map((n) => ({
+      id: Math.trunc(n.id),
+      title: String(n.title ?? '').slice(0, 200),
+      message: String(n.message ?? '').slice(0, 1000),
+      badge: String(n.badge ?? 'App Info').slice(0, 60) || 'App Info',
+      time_label: String(n.time_label ?? 'Today').slice(0, 60) || 'Today',
+    })),
+    shayari_list: safeConfig.shayari_list.slice(0, 500).map((s) => ({
+      id: Math.trunc(s.id),
+      category: String(s.category ?? 'Love').slice(0, 80) || 'Love',
+      text: String(s.text ?? '').slice(0, 2000),
+      author: String(s.author ?? 'अज्ञात').slice(0, 80) || 'अज्ञात',
+      image_url: String(s.image_url ?? '').trim().slice(0, 500),
+    })),
     heroHeadline: safeWeb.heroHeadline.slice(0, 240),
     heroSubheadline: safeWeb.heroSubheadline.slice(0, 500),
     websiteControls: {
@@ -392,5 +407,39 @@ export function preparePublicSiteForFirestore(
     },
     suvichar_list: safeWeb.suvichar_list.slice(0, 100),
     photo_shayari_list: safeWeb.photo_shayari_list.slice(0, 60),
+  };
+
+  if (!extras) {
+    return base;
+  }
+
+  const safeExtras = normalizeAppExtras(extras);
+  return {
+    ...base,
+    default_language_code: safeExtras.default_language_code,
+    default_country_code: safeExtras.default_country_code,
+    supported_languages: safeExtras.supported_languages,
+    supported_countries: safeExtras.supported_countries,
+    dynamic_theme: {
+      presetId: safeExtras.dynamic_theme.presetId,
+      primaryColor: safeExtras.dynamic_theme.primaryColor,
+      accentColor: safeExtras.dynamic_theme.accentColor,
+      surfaceStyle: safeExtras.dynamic_theme.surfaceStyle,
+      cardCornerRadius: safeExtras.dynamic_theme.cardCornerRadius,
+      darkModeEnabled: safeExtras.dynamic_theme.darkModeEnabled,
+      gradientEnabled: safeExtras.dynamic_theme.gradientEnabled,
+      fontScale: safeExtras.dynamic_theme.fontScale,
+    },
+    scheduled_notifications: safeExtras.scheduled_notifications,
+    engagement_tools: {
+      dailyStreakEnabled: safeExtras.engagement_tools.dailyStreakEnabled,
+      moodFilterEnabled: safeExtras.engagement_tools.moodFilterEnabled,
+      oneTapWhatsAppShare: safeExtras.engagement_tools.oneTapWhatsAppShare,
+      confettiOnFavorite: safeExtras.engagement_tools.confettiOnFavorite,
+      dailyShayariGoal: safeExtras.engagement_tools.dailyShayariGoal,
+      pollQuestion: safeExtras.engagement_tools.pollQuestion,
+      pollOptionA: safeExtras.engagement_tools.pollOptionA,
+      pollOptionB: safeExtras.engagement_tools.pollOptionB,
+    },
   };
 }

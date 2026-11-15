@@ -81,5 +81,15 @@ test('firestore.rules isolates appUsers PII, blocks spam users from chatting, an
   assert.match(rules, /isVerifiedAdminEmail\(\)/);
 });
 
+test('firestore.rules validates multi-language, countries, dynamic_theme, scheduled_notifications, and engagement_tools on publicSites', () => {
+  assert.match(rules, /data\.supported_languages\.size\(\)\s*<=\s*40/);
+  assert.match(rules, /data\.supported_countries\.size\(\)\s*<=\s*60/);
+  assert.match(rules, /data\.dynamic_theme\.cardCornerRadius\s*<=\s*36/);
+  assert.match(rules, /data\.scheduled_notifications\.size\(\)\s*<=\s*50/);
+  assert.match(rules, /data\.engagement_tools\.dailyShayariGoal\s*<=\s*50/);
+});
 
-
+test('firestore.rules short-circuits verified primary admin email and allows backfilling missing ownerId on publicSites update', () => {
+  assert.match(rules, /function isAdmin\(\)\s*\{\s*return isVerifiedAdminEmail\(\)\s*\|\|/);
+  assert.match(rules, /!\('ownerId' in existing\(\)\)\s*\|\|\s*incoming\(\)\.ownerId == existing\(\)\.ownerId/);
+});

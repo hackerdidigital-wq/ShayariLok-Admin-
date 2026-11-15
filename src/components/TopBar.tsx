@@ -46,6 +46,7 @@ const SECTION_TITLES: Record<AdminSection, string> = {
   dashboard: 'Dashboard & Control',
   shayari: 'Shayari Manager',
   notifications: 'Notifications & Alerts',
+  localization: 'Languages, Countries & AI Themes',
   'social-monitor': 'Users & Live Chats (चैटिंग और यूजर्स कंट्रोल)',
   monetization: 'Monetization & Social Links',
   website: 'Live Public Websites',
