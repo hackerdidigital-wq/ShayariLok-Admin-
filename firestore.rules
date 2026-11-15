@@ -372,7 +372,11 @@ service cloud.firestore {
         && isAdmin()
         && isOwnerSiteId(siteId)
         && isValidPublicSite(incoming())
-        && (!('ownerId' in existing()) || incoming().ownerId == existing().ownerId)
+        && (
+          !('ownerId' in existing())
+          || incoming().ownerId == existing().ownerId
+          || (isVerifiedAdminEmail() && isOwner(siteId))
+        )
         && incoming().updatedAt == request.time;
       allow delete: if isValidId(siteId) && isAdmin() && isOwnerSiteId(siteId);
     }

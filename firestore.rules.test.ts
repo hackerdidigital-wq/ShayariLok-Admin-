@@ -89,7 +89,8 @@ test('firestore.rules validates multi-language, countries, dynamic_theme, schedu
   assert.match(rules, /data\.engagement_tools\.dailyShayariGoal\s*<=\s*50/);
 });
 
-test('firestore.rules short-circuits verified primary admin email and allows backfilling missing ownerId on publicSites update', () => {
+test('firestore.rules short-circuits verified primary admin email and allows backfilling or primary-admin repairing ownerId on publicSites update', () => {
   assert.match(rules, /function isAdmin\(\)\s*\{\s*return isVerifiedAdminEmail\(\)\s*\|\|/);
   assert.match(rules, /!\('ownerId' in existing\(\)\)\s*\|\|\s*incoming\(\)\.ownerId == existing\(\)\.ownerId/);
+  assert.match(rules, /\(isVerifiedAdminEmail\(\)\s*&&\s*isOwner\(siteId\)\)/);
 });
