@@ -4,6 +4,7 @@ import {
   collection,
   doc,
   getDoc,
+  getDocFromServer,
   limit,
   onSnapshot,
   orderBy,
@@ -296,6 +297,52 @@ export interface PublicSiteSnapshot {
   extras?: AppLocalizationExtras;
 }
 
+export interface PublicSiteSnapshotMeta {
+  fromCache: boolean;
+  hasPendingWrites: boolean;
+}
+
+function mapPublicSiteDocument(
+  d: Record<string, unknown>
+): PublicSiteSnapshot {
+  return {
+    config: normalizeConfig(d),
+    websiteContent: normalizeWebsiteContent({
+      heroHeadline: d.heroHeadline,
+      heroSubheadline: d.heroSubheadline,
+      controls: d.websiteControls,
+      suvichar_list: d.suvichar_list,
+      photo_shayari_list: d.photo_shayari_list,
+    }),
+    organizationName: String(d.organizationName ?? 'CyberKing Studios'),
+    supportEmail: String(d.supportEmail ?? 'support@shayarilok.in'),
+    extras:
+      d.supported_languages || d.supported_countries || d.dynamic_theme
+        ? normalizeAppExtras(d)
+        : undefined,
+  };
+}
+
+export async function loadPublicWebsiteStateOnce(
+  siteId: string
+): Promise<PublicSiteSnapshot | null> {
+  if (!db || !siteId) return null;
+  const path = `publicSites/${siteId}`;
+  const ref = doc(db, 'publicSites', siteId);
+  try {
+    let snap;
+    try {
+      snap = await getDocFromServer(ref);
+    } catch {
+      snap = await getDoc(ref);
+    }
+    if (!snap.exists()) return null;
+    return mapPublicSiteDocument(snap.data() as Record<string, unknown>);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.GET, path);
+  }
+}
+
 export async function publishPublicWebsiteState(
   uid: string,
   config: ShayariLokConfig,
@@ -329,7 +376,7 @@ export async function publishPublicWebsiteState(
 
 export function subscribePublicWebsiteState(
   siteId: string,
-  onData: (snapshot: PublicSiteSnapshot) => void,
+  onData: (snapshot: PublicSiteSnapshot, meta: PublicSiteSnapshotMeta) => void,
   onError?: (error: Error) => void,
   onMissing?: () => void
 ): Unsubscribe {
@@ -344,22 +391,9 @@ export function subscribePublicWebsiteState(
         if (onMissing) onMissing();
         return;
       }
-      const d = snap.data();
-      onData({
-        config: normalizeConfig(d),
-        websiteContent: normalizeWebsiteContent({
-          heroHeadline: d.heroHeadline,
-          heroSubheadline: d.heroSubheadline,
-          controls: d.websiteControls,
-          suvichar_list: d.suvichar_list,
-          photo_shayari_list: d.photo_shayari_list,
-        }),
-        organizationName: String(d.organizationName ?? 'CyberKing Studios'),
-        supportEmail: String(d.supportEmail ?? 'support@shayarilok.in'),
-        extras:
-          d.supported_languages || d.supported_countries || d.dynamic_theme
-            ? normalizeAppExtras(d)
-            : undefined,
+      onData(mapPublicSiteDocument(snap.data() as Record<string, unknown>), {
+        fromCache: snap.metadata.fromCache,
+        hasPendingWrites: snap.metadata.hasPendingWrites,
       });
     },
     (error) => {

@@ -8,6 +8,13 @@ import type {
   WebsiteSocialLinks,
   WebsiteVisibilityControls,
 } from '../types/config';
+import {
+  buildPhotoShayariTombstoneKey,
+  buildSuvicharTombstoneKey,
+  isScopeInitialized,
+  loadTombstoneStore,
+  markScopeInitialized,
+} from './cacheTombstones';
 import { normalizeConfig } from './configHelpers';
 import {
   normalizeEnterpriseSettings,
@@ -242,18 +249,51 @@ export function normalizeWebsiteContent(raw: unknown): WebsiteContentSettings {
 }
 
 export function loadWebsiteContent(): WebsiteContentSettings {
+  const emptySeeded: WebsiteContentSettings = {
+    ...DEFAULT_WEBSITE_CONTENT,
+    controls: { ...DEFAULT_WEBSITE_CONTROLS },
+    socialLinks: { ...DEFAULT_WEBSITE_SOCIAL_LINKS },
+    suvichar_list: [],
+    photo_shayari_list: [],
+  };
   try {
-    const raw = localStorage.getItem(WEBSITE_CONTENT_KEY);
-    if (!raw) return normalizeWebsiteContent(null);
+    const raw =
+      typeof window !== 'undefined'
+        ? window.localStorage.getItem(WEBSITE_CONTENT_KEY)
+        : null;
+    if (!raw) {
+      if (isScopeInitialized('websiteContent')) {
+        return emptySeeded;
+      }
+      const store = loadTombstoneStore();
+      const deletedSuv = new Set(store.deletedSuvicharKeys);
+      const deletedPhoto = new Set(store.deletedPhotoShayariKeys);
+      return {
+        ...DEFAULT_WEBSITE_CONTENT,
+        controls: { ...DEFAULT_WEBSITE_CONTROLS },
+        socialLinks: { ...DEFAULT_WEBSITE_SOCIAL_LINKS },
+        suvichar_list: DEFAULT_SUVICHAR_LIST.filter(
+          (item) => !deletedSuv.has(buildSuvicharTombstoneKey(item))
+        ),
+        photo_shayari_list: DEFAULT_PHOTO_SHAYARI_LIST.filter(
+          (item) => !deletedPhoto.has(buildPhotoShayariTombstoneKey(item))
+        ),
+      };
+    }
     return normalizeWebsiteContent(JSON.parse(raw));
   } catch {
-    return normalizeWebsiteContent(null);
+    return isScopeInitialized('websiteContent')
+      ? emptySeeded
+      : normalizeWebsiteContent(null);
   }
 }
 
 export function saveWebsiteContent(content: WebsiteContentSettings): void {
   try {
-    localStorage.setItem(WEBSITE_CONTENT_KEY, JSON.stringify(content));
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(WEBSITE_CONTENT_KEY, JSON.stringify(content));
+    }
+    markScopeInitialized('websiteContent');
   } catch {
     // Ignore storage quota errors
   }
@@ -326,12 +366,18 @@ export function subscribeLocalLiveWebsiteState(
           websiteContent: normalizeWebsiteContent(JSON.parse(event.newValue)),
           updatedAtMs: Date.now(),
         });
-      } else if (event.key === 'shayari_lok_local_draft') {
+      } else if (
+        event.key === 'shayari_lok_local_draft' ||
+        event.key === 'shayarilok_local_draft_v1'
+      ) {
         onUpdate({
           config: normalizeConfig(JSON.parse(event.newValue)),
           updatedAtMs: Date.now(),
         });
-      } else if (event.key === 'shayari_lok_enterprise_v1') {
+      } else if (
+        event.key === 'shayarilok_enterprise_settings_v1' ||
+        event.key === 'shayari_lok_enterprise_v1'
+      ) {
         const ent = normalizeEnterpriseSettings(JSON.parse(event.newValue));
         onUpdate({
           organizationName: ent.organizationName,

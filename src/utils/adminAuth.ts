@@ -1,4 +1,9 @@
 export const PRIMARY_ADMIN_EMAIL = 'bamniyad749@gmail.com';
+export const SECONDARY_ADMIN_EMAIL = 'baamniyad749@gmail.com';
+export const AUTHORIZED_ADMIN_EMAILS = [
+  PRIMARY_ADMIN_EMAIL,
+  SECONDARY_ADMIN_EMAIL,
+] as const;
 
 export interface FirebaseAuthErrorDiagnostic {
   code: string;
@@ -19,7 +24,7 @@ export function isAuthorizedAdminEmail(
   if (!emailVerified) return false;
   const clean = normalizeEmail(email);
   if (!clean) return false;
-  if (clean === PRIMARY_ADMIN_EMAIL) return true;
+  if ((AUTHORIZED_ADMIN_EMAILS as readonly string[]).includes(clean)) return true;
   return extraAdmins.some((entry) => normalizeEmail(entry) === clean);
 }
 

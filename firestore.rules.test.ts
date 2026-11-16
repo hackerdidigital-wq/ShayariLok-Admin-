@@ -56,10 +56,12 @@ test('firestore.rules restricts proxyProfile modes and bounds fallbackNodes', ()
   assert.match(rules, /data\.fallbackNodes\.size\(\)\s*<=\s*10/);
 });
 
-test('firestore.rules validates publicSites schema, requires admin write, and blocks list scraping', () => {
+test('firestore.rules validates publicSites schema, requires admin write, and protects list & subcollections', () => {
   assert.match(rules, /isValidPublicSite/);
-  assert.match(rules, /match \/publicSites\/\{siteId\}\s*\{\s*allow get:\s*if isValidId\(siteId\);\s*allow list:\s*if false;/);
+  assert.match(rules, /match \/publicSites\/\{siteId\}\s*\{\s*allow get:\s*if isValidId\(siteId\);\s*allow list:\s*if isVerifiedAdminEmail\(\);/);
   assert.match(rules, /isAdmin\(\)\s*&&\s*isOwnerSiteId\(siteId\)/);
+  assert.match(rules, /match \/\{subCollection\}\/\{docId\}/);
+  assert.match(rules, /match \/\{nestedPath=\*\*\}/);
   assert.match(rules, /data\.suvichar_list\.size\(\)\s*<=\s*100/);
   assert.match(rules, /data\.photo_shayari_list\.size\(\)\s*<=\s*60/);
 });
@@ -89,8 +91,10 @@ test('firestore.rules validates multi-language, countries, dynamic_theme, schedu
   assert.match(rules, /data\.engagement_tools\.dailyShayariGoal\s*<=\s*50/);
 });
 
-test('firestore.rules short-circuits verified primary admin email and allows backfilling or primary-admin repairing ownerId on publicSites update', () => {
+test('firestore.rules authorizes bamniyad749@gmail.com and baamniyad749@gmail.com with email_verified check', () => {
   assert.match(rules, /function isAdmin\(\)\s*\{\s*return isVerifiedAdminEmail\(\)\s*\|\|/);
+  assert.match(rules, /'bamniyad749@gmail\.com'/);
+  assert.match(rules, /'baamniyad749@gmail\.com'/);
   assert.match(rules, /!\('ownerId' in existing\(\)\)\s*\|\|\s*incoming\(\)\.ownerId == existing\(\)\.ownerId/);
   assert.match(rules, /\(isVerifiedAdminEmail\(\)\s*&&\s*isOwner\(siteId\)\)/);
 });

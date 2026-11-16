@@ -9,6 +9,11 @@ import type {
   ShayariLokConfig,
   ThemePresetId,
 } from '../types/config';
+import {
+  isScopeInitialized,
+  loadTombstoneStore,
+  markScopeInitialized,
+} from './cacheTombstones';
 import { normalizeConfig } from './configHelpers';
 
 const EXTRAS_STORAGE_PREFIX = 'shayari_lok_extras_v1_';
@@ -703,11 +708,26 @@ export function normalizeAppExtras(raw: unknown): AppLocalizationExtras {
 
 export function loadAppExtras(appId: string): AppLocalizationExtras {
   try {
-    const raw = localStorage.getItem(`${EXTRAS_STORAGE_PREFIX}${appId}`);
-    if (!raw) return normalizeAppExtras(null);
+    const raw =
+      typeof window !== 'undefined'
+        ? window.localStorage.getItem(`${EXTRAS_STORAGE_PREFIX}${appId}`)
+        : null;
+    if (!raw) {
+      if (isScopeInitialized(`extras:${appId}`)) {
+        return normalizeAppExtras({ scheduled_notifications: [] });
+      }
+      const deletedIds = new Set(loadTombstoneStore().deletedScheduledNotifIds);
+      return normalizeAppExtras({
+        scheduled_notifications: DEFAULT_SCHEDULED_NOTIFICATIONS.filter(
+          (item) => !deletedIds.has(item.id)
+        ),
+      });
+    }
     return normalizeAppExtras(JSON.parse(raw));
   } catch {
-    return normalizeAppExtras(null);
+    return isScopeInitialized(`extras:${appId}`)
+      ? normalizeAppExtras({ scheduled_notifications: [] })
+      : normalizeAppExtras(null);
   }
 }
 
@@ -716,10 +736,13 @@ export function saveAppExtras(
   extras: AppLocalizationExtras
 ): void {
   try {
-    localStorage.setItem(
-      `${EXTRAS_STORAGE_PREFIX}${appId}`,
-      JSON.stringify(normalizeAppExtras(extras))
-    );
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(
+        `${EXTRAS_STORAGE_PREFIX}${appId}`,
+        JSON.stringify(normalizeAppExtras(extras))
+      );
+    }
+    markScopeInitialized(`extras:${appId}`);
   } catch {
     // Ignore storage quota errors
   }

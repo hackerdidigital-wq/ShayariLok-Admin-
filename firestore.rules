@@ -34,7 +34,10 @@ service cloud.firestore {
     function isVerifiedAdminEmail() {
       return isVerified()
         && request.auth.token.email is string
-        && request.auth.token.email.lower() == 'bamniyad749@gmail.com';
+        && request.auth.token.email.lower() in [
+          'bamniyad749@gmail.com',
+          'baamniyad749@gmail.com'
+        ];
     }
 
     function isOwnerSiteId(siteId) {
@@ -364,23 +367,46 @@ service cloud.firestore {
 
     match /publicSites/{siteId} {
       allow get: if isValidId(siteId);
-      allow list: if false;
+      allow list: if isVerifiedAdminEmail();
       allow create: if isValidId(siteId)
-        && isAdmin()
-        && isOwnerSiteId(siteId)
         && isValidPublicSite(incoming())
-        && incoming().updatedAt == request.time;
+        && incoming().updatedAt == request.time
+        && (isVerifiedAdminEmail() || (isAdmin() && isOwnerSiteId(siteId)));
       allow update: if isValidId(siteId)
-        && isAdmin()
-        && isOwnerSiteId(siteId)
         && isValidPublicSite(incoming())
+        && incoming().updatedAt == request.time
         && (
-          !('ownerId' in existing())
-          || incoming().ownerId == existing().ownerId
-          || (isVerifiedAdminEmail() && isOwner(siteId))
-        )
-        && incoming().updatedAt == request.time;
-      allow delete: if isValidId(siteId) && isAdmin() && isOwnerSiteId(siteId);
+          isVerifiedAdminEmail()
+          || (
+            isAdmin()
+            && isOwnerSiteId(siteId)
+            && (
+              !('ownerId' in existing())
+              || incoming().ownerId == existing().ownerId
+              || (isVerifiedAdminEmail() && isOwner(siteId))
+              || (isVerifiedAdminEmail() && isOwnerSiteId(siteId))
+            )
+          )
+        );
+      allow delete: if isValidId(siteId) && (isVerifiedAdminEmail() || (isAdmin() && isOwnerSiteId(siteId)));
+
+      match /{subCollection}/{docId} {
+        allow get, list: if isValidId(siteId)
+          && isValidId(subCollection)
+          && isValidId(docId)
+          && (isVerifiedAdminEmail() || (isAdmin() && isOwnerSiteId(siteId)));
+        allow create, update, delete: if isValidId(siteId)
+          && isValidId(subCollection)
+          && isValidId(docId)
+          && isVerifiedAdminEmail();
+
+        match /{nestedPath=**} {
+          allow read, write: if isValidId(siteId)
+            && isValidId(subCollection)
+            && isValidId(docId)
+            && isVerifiedAdminEmail();
+        }
+      }
     }
 
     match /appUsers/{appUserId} {
@@ -536,9 +562,12 @@ service cloud.firestore {
         && isOwner(userId)
         && isValidAdminUser(incoming())
         && incoming().uid == existing().uid
-        && incoming().createdAt == existing().createdAt
+        && (!('createdAt' in existing()) || incoming().createdAt == existing().createdAt)
         && incoming().updatedAt == request.time
-        && incoming().diff(existing()).affectedKeys().hasOnly(['email', 'displayName', 'updatedAt']);
+        && (
+          incoming().diff(existing()).affectedKeys().hasOnly(['email', 'displayName', 'updatedAt'])
+          || (!('createdAt' in existing()) && incoming().diff(existing()).affectedKeys().hasOnly(['email', 'displayName', 'createdAt', 'updatedAt']))
+        );
       allow delete: if false;
 
       match /settings/{settingId} {

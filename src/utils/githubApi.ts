@@ -5,7 +5,15 @@ import type {
   ShayariLokConfig,
 } from '../types/config';
 import { decodeUtf8Base64, encodeUtf8Base64 } from './base64';
-import { normalizeConfig, serializeConfigJson } from './configHelpers';
+import {
+  isScopeInitialized,
+  markScopeInitialized,
+} from './cacheTombstones';
+import {
+  DEFAULT_CONFIG,
+  normalizeConfig,
+  serializeConfigJson,
+} from './configHelpers';
 import { buildPublicGitHubImageUrls } from './imageUpload';
 import {
   buildTargetGitHubApiUrl,
@@ -72,11 +80,24 @@ export function saveLocalSha(sha: string): void {
   }
 }
 
+const LEGACY_DRAFT_KEY = 'shayari_lok_local_draft';
+
 export function loadLocalDraft(): ShayariLokConfig | null {
   if (typeof window === 'undefined') return null;
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY_DRAFT);
-    if (!raw) return null;
+    const raw =
+      window.localStorage.getItem(STORAGE_KEY_DRAFT) ??
+      window.localStorage.getItem(LEGACY_DRAFT_KEY);
+    if (!raw) {
+      if (isScopeInitialized('config:default')) {
+        return {
+          ...DEFAULT_CONFIG,
+          notifications: [],
+          shayari_list: [],
+        };
+      }
+      return null;
+    }
     return normalizeConfig(JSON.parse(raw));
   } catch {
     return null;
@@ -86,7 +107,10 @@ export function loadLocalDraft(): ShayariLokConfig | null {
 export function saveLocalDraft(config: ShayariLokConfig): void {
   if (typeof window === 'undefined') return;
   try {
-    window.localStorage.setItem(STORAGE_KEY_DRAFT, serializeConfigJson(config));
+    const serialized = serializeConfigJson(config);
+    window.localStorage.setItem(STORAGE_KEY_DRAFT, serialized);
+    window.localStorage.setItem(LEGACY_DRAFT_KEY, serialized);
+    markScopeInitialized('config:default');
   } catch {
     // Ignore storage quota or private browsing errors
   }

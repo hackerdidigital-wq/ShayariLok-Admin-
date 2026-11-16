@@ -49,10 +49,10 @@ import type {
 } from '../types/config';
 import { copyTextWithFeedback } from '../utils/clipboardToast';
 import {
-  DEMO_APP_USERS,
-  DEMO_CHAT_MESSAGES,
-  DEMO_CHAT_ROOMS,
-  DEMO_SOCIAL_EDGES,
+  clearSocialTombstones,
+  recordDeletedSocialEntities,
+} from '../utils/cacheTombstones';
+import {
   buildAndroidSocialFirestoreEndpoints,
   buildSocialCleanupPlan,
   computeSocialOverview,
@@ -61,6 +61,9 @@ import {
   generateAndroidSocialIntegrationCode,
   getUserRelationships,
   isDummyAppUser,
+  loadSandboxSocialState,
+  saveSandboxSocialState,
+  type SandboxSocialState,
 } from '../utils/socialMonitor';
 
 interface SocialMonitorSectionProps {
@@ -107,19 +110,41 @@ export const SocialMonitorSection: React.FC<SocialMonitorSectionProps> = ({
   const [cloudRooms, setCloudRooms] = useState<ChatRoomItem[]>([]);
   const [cloudMessages, setCloudMessages] = useState<ChatMessageItem[]>([]);
 
-  // Sandbox state (deterministic interactive state when unauthenticated)
-  const [sandboxUsers, setSandboxUsers] = useState<AppUserProfile[]>(() => [
-    ...DEMO_APP_USERS,
-  ]);
-  const [sandboxEdges, setSandboxEdges] = useState<SocialEdgeItem[]>(() => [
-    ...DEMO_SOCIAL_EDGES,
-  ]);
-  const [sandboxRooms, setSandboxRooms] = useState<ChatRoomItem[]>(() => [
-    ...DEMO_CHAT_ROOMS,
-  ]);
+  // Sandbox state (persisted in localStorage with deletion tombstones)
+  const [initialSandbox] = useState<SandboxSocialState>(() =>
+    loadSandboxSocialState()
+  );
+  const [sandboxUsers, setSandboxUsers] = useState<AppUserProfile[]>(
+    () => initialSandbox.users
+  );
+  const [sandboxEdges, setSandboxEdges] = useState<SocialEdgeItem[]>(
+    () => initialSandbox.edges
+  );
+  const [sandboxRooms, setSandboxRooms] = useState<ChatRoomItem[]>(
+    () => initialSandbox.rooms
+  );
   const [sandboxMessages, setSandboxMessages] = useState<
     Record<string, ChatMessageItem[]>
-  >(() => ({ ...DEMO_CHAT_MESSAGES }));
+  >(() => initialSandbox.messages);
+
+  const commitSandboxState = useCallback(
+    (
+      next: SandboxSocialState,
+      deletedTargets?: {
+        userIds?: string[];
+        edgeIds?: string[];
+        roomIds?: string[];
+        messageIds?: string[];
+      }
+    ) => {
+      setSandboxUsers(next.users);
+      setSandboxEdges(next.edges);
+      setSandboxRooms(next.rooms);
+      setSandboxMessages(next.messages);
+      saveSandboxSocialState(next, deletedTargets);
+    },
+    []
+  );
 
   // Filters & selections
   const [userSearch, setUserSearch] = useState('');
@@ -127,13 +152,13 @@ export const SocialMonitorSection: React.FC<SocialMonitorSectionProps> = ({
     'all' | 'online' | 'blocked'
   >('all');
   const [selectedUserId, setSelectedUserId] = useState<string>(
-    DEMO_APP_USERS[0].uid
+    () => initialSandbox.users[0]?.uid ?? ''
   );
 
   const [roomSearch, setRoomSearch] = useState('');
   const [onlyFlaggedRooms, setOnlyFlaggedRooms] = useState(false);
   const [selectedRoomId, setSelectedRoomId] = useState<string>(
-    DEMO_CHAT_ROOMS[0].id
+    () => initialSandbox.rooms[0]?.id ?? ''
   );
 
   // Modals (Zero window.alert / window.confirm)
@@ -372,22 +397,26 @@ export const SocialMonitorSection: React.FC<SocialMonitorSectionProps> = ({
         const cleanHandle =
           editForm.username.trim().replace(/[^a-zA-Z0-9_.]/g, '') ||
           editModalUser.username;
-        setSandboxUsers((prev) =>
-          prev.map((u) =>
-            u.uid === editModalUser.uid
-              ? {
-                  ...u,
-                  displayName: cleanName,
-                  username: cleanHandle,
-                  city: editForm.city.trim(),
-                  address: editForm.address.trim(),
-                  bio: editForm.bio.trim(),
-                  isOnline: editForm.isOnline,
-                  updatedAt: new Date().toISOString(),
-                }
-              : u
-          )
+        const nextUsers = sandboxUsers.map((u) =>
+          u.uid === editModalUser.uid
+            ? {
+                ...u,
+                displayName: cleanName,
+                username: cleanHandle,
+                city: editForm.city.trim(),
+                address: editForm.address.trim(),
+                bio: editForm.bio.trim(),
+                isOnline: editForm.isOnline,
+                updatedAt: new Date().toISOString(),
+              }
+            : u
         );
+        commitSandboxState({
+          users: nextUsers,
+          edges: sandboxEdges,
+          rooms: sandboxRooms,
+          messages: sandboxMessages,
+        });
         setActionNotice({
           type: 'info',
           text: `${cleanName} की प्रोफ़ाइल Sandbox में अपडेट हुई।`,
@@ -423,17 +452,21 @@ export const SocialMonitorSection: React.FC<SocialMonitorSectionProps> = ({
         );
       }
     } else {
-      setSandboxUsers((prev) =>
-        prev.map((u) =>
-          u.uid === targetUser.uid
-            ? {
-                ...u,
-                isBlocked: nextBlocked,
-                blockReason: nextBlocked ? reason.trim() || 'Blocked by Admin' : '',
-              }
-            : u
-        )
+      const nextUsers = sandboxUsers.map((u) =>
+        u.uid === targetUser.uid
+          ? {
+              ...u,
+              isBlocked: nextBlocked,
+              blockReason: nextBlocked ? reason.trim() || 'Blocked by Admin' : '',
+            }
+          : u
       );
+      commitSandboxState({
+        users: nextUsers,
+        edges: sandboxEdges,
+        rooms: sandboxRooms,
+        messages: sandboxMessages,
+      });
     }
     setBlockModalUser(null);
   };
@@ -446,21 +479,45 @@ export const SocialMonitorSection: React.FC<SocialMonitorSectionProps> = ({
     try {
       if (dataSource === 'firestore') {
         const res = await deleteAppUserInFirestore(target.uid);
+        recordDeletedSocialEntities({ userIds: [target.uid] });
         setActionNotice({
           type: 'success',
           text: `यूजर "${target.displayName}" (${target.uid}) हमेशा के लिए डिलीट हो गया (${res.deletedEdges} edges, ${res.deletedRooms} rooms, ${res.deletedMessages} messages cleaned)।`,
         });
       } else {
-        setSandboxUsers((prev) => prev.filter((u) => u.uid !== target.uid));
-        setSandboxEdges((prev) =>
-          prev.filter((e) => e.actorId !== target.uid && e.targetId !== target.uid)
+        const nextUsers = sandboxUsers.filter((u) => u.uid !== target.uid);
+        const removedEdgeIds = sandboxEdges
+          .filter((e) => e.actorId === target.uid || e.targetId === target.uid)
+          .map((e) => e.id);
+        const nextEdges = sandboxEdges.filter(
+          (e) => e.actorId !== target.uid && e.targetId !== target.uid
         );
-        setSandboxRooms((prev) =>
-          prev.filter((r) => !r.participantIds.includes(target.uid))
+        const removedRoomIds = sandboxRooms
+          .filter((r) => r.participantIds.includes(target.uid))
+          .map((r) => r.id);
+        const nextRooms = sandboxRooms.filter(
+          (r) => !r.participantIds.includes(target.uid)
+        );
+        const nextMessages = { ...sandboxMessages };
+        for (const rid of removedRoomIds) {
+          delete nextMessages[rid];
+        }
+        commitSandboxState(
+          {
+            users: nextUsers,
+            edges: nextEdges,
+            rooms: nextRooms,
+            messages: nextMessages,
+          },
+          {
+            userIds: [target.uid],
+            edgeIds: removedEdgeIds,
+            roomIds: removedRoomIds,
+          }
         );
         setActionNotice({
           type: 'info',
-          text: `Sandbox यूजर "${target.displayName}" हटाया गया।`,
+          text: `Sandbox यूजर "${target.displayName}" स्थायी रूप से हटाया गया।`,
         });
       }
       setDeleteUserTarget(null);
@@ -481,20 +538,27 @@ export const SocialMonitorSection: React.FC<SocialMonitorSectionProps> = ({
     try {
       if (dataSource === 'firestore') {
         const res = await deleteChatRoomInFirestore(room.id);
+        recordDeletedSocialEntities({ roomIds: [room.id] });
         setActionNotice({
           type: 'success',
           text: `चैट रूम "${room.id}" और उसके ${res.deletedMessages} मैसेज हमेशा के लिए डिलीट हो गए।`,
         });
       } else {
-        setSandboxRooms((prev) => prev.filter((r) => r.id !== room.id));
-        setSandboxMessages((prev) => {
-          const copy = { ...prev };
-          delete copy[room.id];
-          return copy;
-        });
+        const nextRooms = sandboxRooms.filter((r) => r.id !== room.id);
+        const nextMessages = { ...sandboxMessages };
+        delete nextMessages[room.id];
+        commitSandboxState(
+          {
+            users: sandboxUsers,
+            edges: sandboxEdges,
+            rooms: nextRooms,
+            messages: nextMessages,
+          },
+          { roomIds: [room.id] }
+        );
         setActionNotice({
           type: 'info',
-          text: `Sandbox चैट रूम "${room.id}" डिलीट हुआ।`,
+          text: `Sandbox चैट रूम "${room.id}" स्थायी रूप से डिलीट हुआ।`,
         });
       }
       setDeleteRoomTarget(null);
@@ -512,6 +576,7 @@ export const SocialMonitorSection: React.FC<SocialMonitorSectionProps> = ({
     if (dataSource === 'firestore') {
       try {
         await deleteSocialEdgeInFirestore(edge.id);
+        recordDeletedSocialEntities({ edgeIds: [edge.id] });
         setActionNotice({
           type: 'success',
           text: `Social edge (${edge.type}) हटाया गया।`,
@@ -522,7 +587,16 @@ export const SocialMonitorSection: React.FC<SocialMonitorSectionProps> = ({
         );
       }
     } else {
-      setSandboxEdges((prev) => prev.filter((e) => e.id !== edge.id));
+      const nextEdges = sandboxEdges.filter((e) => e.id !== edge.id);
+      commitSandboxState(
+        {
+          users: sandboxUsers,
+          edges: nextEdges,
+          rooms: sandboxRooms,
+          messages: sandboxMessages,
+        },
+        { edgeIds: [edge.id] }
+      );
     }
   };
 
@@ -540,6 +614,11 @@ export const SocialMonitorSection: React.FC<SocialMonitorSectionProps> = ({
           edgeIds: cleanupPlan.edgeIds,
           roomIds: cleanupPlan.roomIds,
         });
+        recordDeletedSocialEntities({
+          userIds: cleanupPlan.userIds,
+          edgeIds: cleanupPlan.edgeIds,
+          roomIds: cleanupPlan.roomIds,
+        });
         await runLiveDbVerification();
         setActionNotice({
           type: 'success',
@@ -549,12 +628,29 @@ export const SocialMonitorSection: React.FC<SocialMonitorSectionProps> = ({
         const uSet = new Set(cleanupPlan.userIds);
         const eSet = new Set(cleanupPlan.edgeIds);
         const rSet = new Set(cleanupPlan.roomIds);
-        setSandboxUsers((prev) => prev.filter((u) => !uSet.has(u.uid)));
-        setSandboxEdges((prev) => prev.filter((e) => !eSet.has(e.id)));
-        setSandboxRooms((prev) => prev.filter((r) => !rSet.has(r.id)));
+        const nextUsers = sandboxUsers.filter((u) => !uSet.has(u.uid));
+        const nextEdges = sandboxEdges.filter((e) => !eSet.has(e.id));
+        const nextRooms = sandboxRooms.filter((r) => !rSet.has(r.id));
+        const nextMessages = { ...sandboxMessages };
+        for (const rid of rSet) {
+          delete nextMessages[rid];
+        }
+        commitSandboxState(
+          {
+            users: nextUsers,
+            edges: nextEdges,
+            rooms: nextRooms,
+            messages: nextMessages,
+          },
+          {
+            userIds: cleanupPlan.userIds,
+            edgeIds: cleanupPlan.edgeIds,
+            roomIds: cleanupPlan.roomIds,
+          }
+        );
         setActionNotice({
           type: 'info',
-          text: `Sandbox से ${cleanupPlan.totalCount} dummy entries साफ़ की गईं।`,
+          text: `Sandbox से ${cleanupPlan.totalCount} dummy entries स्थायी रूप से साफ़ की गईं।`,
         });
       }
       setCleanupModalOpen(false);
@@ -576,9 +672,15 @@ export const SocialMonitorSection: React.FC<SocialMonitorSectionProps> = ({
         setCloudError(err instanceof Error ? err.message : 'Failed to flag room');
       }
     } else {
-      setSandboxRooms((prev) =>
-        prev.map((r) => (r.id === room.id ? { ...r, flaggedSpam: next } : r))
+      const nextRooms = sandboxRooms.map((r) =>
+        r.id === room.id ? { ...r, flaggedSpam: next } : r
       );
+      commitSandboxState({
+        users: sandboxUsers,
+        edges: sandboxEdges,
+        rooms: nextRooms,
+        messages: sandboxMessages,
+      });
     }
   };
 
@@ -593,12 +695,18 @@ export const SocialMonitorSection: React.FC<SocialMonitorSectionProps> = ({
         );
       }
     } else {
-      setSandboxMessages((prev) => ({
-        ...prev,
-        [msg.roomId]: (prev[msg.roomId] ?? []).map((m) =>
+      const nextMessages = {
+        ...sandboxMessages,
+        [msg.roomId]: (sandboxMessages[msg.roomId] ?? []).map((m) =>
           m.id === msg.id ? { ...m, isFlagged: next } : m
         ),
-      }));
+      };
+      commitSandboxState({
+        users: sandboxUsers,
+        edges: sandboxEdges,
+        rooms: sandboxRooms,
+        messages: nextMessages,
+      });
     }
   };
 
@@ -606,16 +714,28 @@ export const SocialMonitorSection: React.FC<SocialMonitorSectionProps> = ({
     if (dataSource === 'firestore') {
       try {
         await deleteChatMessageInFirestore(msg.roomId, msg.id);
+        recordDeletedSocialEntities({ messageIds: [msg.id] });
       } catch (err) {
         setCloudError(
           err instanceof Error ? err.message : 'Failed to delete message'
         );
       }
     } else {
-      setSandboxMessages((prev) => ({
-        ...prev,
-        [msg.roomId]: (prev[msg.roomId] ?? []).filter((m) => m.id !== msg.id),
-      }));
+      const nextMessages = {
+        ...sandboxMessages,
+        [msg.roomId]: (sandboxMessages[msg.roomId] ?? []).filter(
+          (m) => m.id !== msg.id
+        ),
+      };
+      commitSandboxState(
+        {
+          users: sandboxUsers,
+          edges: sandboxEdges,
+          rooms: sandboxRooms,
+          messages: nextMessages,
+        },
+        { messageIds: [msg.id] }
+      );
     }
   };
 
@@ -627,6 +747,7 @@ export const SocialMonitorSection: React.FC<SocialMonitorSectionProps> = ({
     setSeeding(true);
     setCloudError(null);
     try {
+      clearSocialTombstones();
       await seedDemoSocialDataToFirestore();
       setDataSource('firestore');
       await runLiveDbVerification();

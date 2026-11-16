@@ -4,6 +4,12 @@ import type {
   ChatRoomItem,
   SocialEdgeItem,
 } from '../types/config';
+import {
+  isScopeInitialized,
+  loadTombstoneStore,
+  markScopeInitialized,
+  recordDeletedSocialEntities,
+} from './cacheTombstones';
 
 export interface SocialOverviewStats {
   totalUsers: number;
@@ -599,13 +605,17 @@ class ShayariSocialRepository {
 
     // 2. Real-Time Profile, Block & Removal Listener (Zero-Delay Admin Enforcement)
     // Reflects Admin profile edits, instant blocking, and permanent account deletion immediately.
-    fun observeMyProfileAndBlockStatus(onStatus: (LiveUserStatus) -> Unit) {
+    fun observeMyProfileAndBlockStatus(
+        onCacheWipeRequired: (() -> Unit)? = null,
+        onStatus: (LiveUserStatus) -> Unit
+    ) {
         val uid = auth.currentUser?.uid ?: return
         profileListener?.remove()
         profileListener = db.collection("appUsers").document(uid).addSnapshotListener { snap, error ->
             if (error != null) return@addSnapshotListener
             if (snap == null || !snap.exists()) {
-                // Admin removed this account permanently -> force immediate sign-out / lockout in app
+                // Admin removed this account permanently -> wipe any local Room/SharedPreferences social cache & lock out
+                onCacheWipeRequired?.invoke()
                 onStatus(LiveUserStatus(false, "", "", "", "", true, "Account removed by Admin"))
                 return@addSnapshotListener
             }
@@ -728,3 +738,113 @@ class ShayariSocialRepository {
 }
 `;
 }
+
+export const SANDBOX_SOCIAL_STORAGE_KEY = 'shayarilok_sandbox_social_v1';
+export const SANDBOX_SOCIAL_CHANGED_EVENT = 'shayarilok_sandbox_social_changed';
+
+export interface SandboxSocialState {
+  users: AppUserProfile[];
+  edges: SocialEdgeItem[];
+  rooms: ChatRoomItem[];
+  messages: Record<string, ChatMessageItem[]>;
+}
+
+function stripDeletedFromSandboxState(state: SandboxSocialState): SandboxSocialState {
+  const store = loadTombstoneStore();
+  const delUsers = new Set(store.deletedSocialUserIds);
+  const delEdges = new Set(store.deletedSocialEdgeIds);
+  const delRooms = new Set(store.deletedChatRoomIds);
+  const delMsgs = new Set(store.deletedChatMessageIds);
+
+  const users = state.users.filter((u) => !delUsers.has(u.uid));
+  const edges = state.edges.filter(
+    (e) =>
+      !delEdges.has(e.id) &&
+      !delUsers.has(e.actorId) &&
+      !delUsers.has(e.targetId)
+  );
+  const rooms = state.rooms.filter(
+    (r) =>
+      !delRooms.has(r.id) &&
+      !r.participantIds.some((pid) => delUsers.has(pid))
+  );
+  const messages: Record<string, ChatMessageItem[]> = {};
+  for (const room of rooms) {
+    const list = state.messages[room.id] ?? [];
+    messages[room.id] = list.filter((m) => !delMsgs.has(m.id));
+  }
+  return { users, edges, rooms, messages };
+}
+
+export function loadSandboxSocialState(): SandboxSocialState {
+  const defaultSeed: SandboxSocialState = {
+    users: DEMO_APP_USERS.map((u) => ({ ...u })),
+    edges: DEMO_SOCIAL_EDGES.map((e) => ({ ...e })),
+    rooms: DEMO_CHAT_ROOMS.map((r) => ({
+      ...r,
+      participantIds: [...r.participantIds] as [string, string],
+      participantNames: [...r.participantNames] as [string, string],
+    })),
+    messages: Object.fromEntries(
+      Object.entries(DEMO_CHAT_MESSAGES).map(([k, v]) => [
+        k,
+        v.map((m) => ({ ...m })),
+      ])
+    ),
+  };
+
+  if (typeof window === 'undefined') {
+    return stripDeletedFromSandboxState(defaultSeed);
+  }
+
+  try {
+    const raw = window.localStorage.getItem(SANDBOX_SOCIAL_STORAGE_KEY);
+    if (!raw) {
+      if (isScopeInitialized('sandboxSocial')) {
+        return { users: [], edges: [], rooms: [], messages: {} };
+      }
+      const initial = stripDeletedFromSandboxState(defaultSeed);
+      saveSandboxSocialState(initial);
+      return initial;
+    }
+    const parsed = JSON.parse(raw) as Partial<SandboxSocialState>;
+    return stripDeletedFromSandboxState({
+      users: Array.isArray(parsed.users) ? parsed.users : [],
+      edges: Array.isArray(parsed.edges) ? parsed.edges : [],
+      rooms: Array.isArray(parsed.rooms) ? parsed.rooms : [],
+      messages:
+        parsed.messages && typeof parsed.messages === 'object'
+          ? parsed.messages
+          : {},
+    });
+  } catch {
+    return { users: [], edges: [], rooms: [], messages: {} };
+  }
+}
+
+export function saveSandboxSocialState(
+  state: SandboxSocialState,
+  deletedTargets?: {
+    userIds?: string[];
+    edgeIds?: string[];
+    roomIds?: string[];
+    messageIds?: string[];
+  }
+): void {
+  if (deletedTargets) {
+    recordDeletedSocialEntities(deletedTargets);
+  } else {
+    markScopeInitialized('sandboxSocial');
+  }
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(
+      SANDBOX_SOCIAL_STORAGE_KEY,
+      JSON.stringify(state)
+    );
+    window.dispatchEvent(new CustomEvent(SANDBOX_SOCIAL_CHANGED_EVENT));
+  } catch {
+    // Ignore storage quota errors
+  }
+}
+

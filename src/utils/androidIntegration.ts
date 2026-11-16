@@ -250,13 +250,127 @@ data class ShayariItem(
     @SerializedName("image_url") val imageUrl: String = ""
 )
 
-// 2. ConfigRepository.kt — Multi-CDN Failover Fetcher (OkHttp + Gson + Coroutines)
+// 2. ConfigLocalCache.kt — Authoritative SharedPreferences + Room DAO Cache (Never Re-Injects Deleted Mocks)
+package com.cyberking.shayarilok.data.local
+
+import android.content.Context
+import androidx.room.Dao
+import androidx.room.Entity
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.PrimaryKey
+import androidx.room.Query
+import androidx.room.Transaction
+import com.cyberking.shayarilok.data.model.ShayariConfig
+import com.cyberking.shayarilok.data.model.ShayariItem
+import com.google.gson.Gson
+
+@Entity(tableName = "shayari_cache")
+data class ShayariCacheEntity(
+    @PrimaryKey val id: Int,
+    val category: String,
+    val text: String,
+    val author: String,
+    val imageUrl: String
+)
+
+@Dao
+interface ShayariCacheDao {
+    @Query("SELECT * FROM shayari_cache ORDER BY id DESC")
+    suspend fun getAll(): List<ShayariCacheEntity>
+
+    @Query("DELETE FROM shayari_cache")
+    suspend fun deleteAll()
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(items: List<ShayariCacheEntity>)
+
+    // CRITICAL: Always wipe table first even when remote list is empty ([]).
+    // Never use upsert/merge without deleteAll(), otherwise deleted mock items linger forever.
+    @Transaction
+    suspend fun replaceAllAuthoritatively(items: List<ShayariCacheEntity>) {
+        deleteAll()
+        if (items.isNotEmpty()) {
+            insertAll(items)
+        }
+    }
+}
+
+class ConfigLocalCache(context: Context) {
+    private val prefs = context.getSharedPreferences("shayarilok_authoritative_cache", Context.MODE_PRIVATE)
+    private val gson = Gson()
+
+    companion object {
+        private const val KEY_CONFIG_JSON = "authoritative_config_json"
+        private const val KEY_HAS_AUTHORITATIVE_SYNC = "has_authoritative_sync"
+        private const val KEY_LEGACY_SEED_WIPED = "legacy_seed_wiped_v2"
+    }
+
+    init {
+        // One-time cleanup of any legacy mock/seed keys from earlier app versions
+        if (!prefs.getBoolean(KEY_LEGACY_SEED_WIPED, false)) {
+            prefs.edit()
+                .remove("seed_shayari_list")
+                .remove("default_mock_cache")
+                .remove("fallback_seed_applied")
+                .putBoolean(KEY_LEGACY_SEED_WIPED, true)
+                .apply()
+        }
+    }
+
+    fun hasAuthoritativeSync(): Boolean = prefs.getBoolean(KEY_HAS_AUTHORITATIVE_SYNC, false)
+
+    // Overwrite cache unconditionally (commit = true so app kills never lose deletion state).
+    // Even if config.shayariList or config.notifications is emptyList(), persist it as truth.
+    fun replaceConfigAuthoritatively(config: ShayariConfig) {
+        prefs.edit()
+            .putString(KEY_CONFIG_JSON, gson.toJson(config))
+            .putBoolean(KEY_HAS_AUTHORITATIVE_SYNC, true)
+            .commit()
+    }
+
+    suspend fun replaceRoomCacheAuthoritatively(dao: ShayariCacheDao, items: List<ShayariItem>) {
+        val entities = items.map {
+            ShayariCacheEntity(
+                id = it.id,
+                category = it.category,
+                text = it.text,
+                author = it.author,
+                imageUrl = it.imageUrl
+            )
+        }
+        dao.replaceAllAuthoritatively(entities)
+    }
+
+    fun getCachedConfigOrNull(): ShayariConfig? {
+        if (!hasAuthoritativeSync()) return null
+        val raw = prefs.getString(KEY_CONFIG_JSON, null) ?: return null
+        return try {
+            gson.fromJson(raw, ShayariConfig::class.java)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    fun wipeAllMockAndSeedData() {
+        prefs.edit()
+            .remove(KEY_CONFIG_JSON)
+            .putBoolean(KEY_HAS_AUTHORITATIVE_SYNC, true)
+            .putBoolean(KEY_LEGACY_SEED_WIPED, true)
+            .commit()
+    }
+}
+
+// 3. ConfigRepository.kt — Multi-CDN Failover Fetcher with Authoritative Cache Replacement
 package com.cyberking.shayarilok.data.remote
 
+import com.cyberking.shayarilok.data.local.ConfigLocalCache
+import com.cyberking.shayarilok.data.local.ShayariCacheDao
 import com.cyberking.shayarilok.data.model.ShayariConfig
 import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.CacheControl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.util.concurrent.TimeUnit
@@ -266,13 +380,17 @@ object ConfigRepository {
     private const val FALLBACK_URL = "${fallbackUrl}"
 
     private val client = OkHttpClient.Builder()
+        .cache(null) // Disable OkHttp disk cache so deleted items are never replayed from HTTP cache
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(12, TimeUnit.SECONDS)
         .build()
 
     private val gson = Gson()
 
-    suspend fun fetchLiveConfig(): Result<ShayariConfig> = withContext(Dispatchers.IO) {
+    suspend fun fetchLiveConfig(
+        localCache: ConfigLocalCache? = null,
+        roomDao: ShayariCacheDao? = null
+    ): Result<ShayariConfig> = withContext(Dispatchers.IO) {
         val urls = listOf(PRIMARY_URL, FALLBACK_URL).distinct()
         var lastError: Exception? = null
 
@@ -283,7 +401,8 @@ object ConfigRepository {
                 val freshUrl = "$url\${separator}t=\${System.currentTimeMillis()}"
                 val request = Request.Builder()
                     .url(freshUrl)
-                    .header("Cache-Control", "no-cache")
+                    .cacheControl(CacheControl.FORCE_NETWORK)
+                    .header("Cache-Control", "no-cache, no-store")
                     .build()
 
                 client.newCall(request).execute().use { response ->
@@ -291,6 +410,11 @@ object ConfigRepository {
                         val body = response.body?.string()
                         if (!body.isNullOrBlank()) {
                             val parsed = gson.fromJson(body, ShayariConfig::class.java)
+                            // Replace local SharedPreferences + Room DB atomically; never merge with old seeds
+                            localCache?.replaceConfigAuthoritatively(parsed)
+                            if (localCache != null && roomDao != null) {
+                                localCache.replaceRoomCacheAuthoritatively(roomDao, parsed.shayariList)
+                            }
                             return@withContext Result.success(parsed)
                         }
                     }
@@ -299,6 +423,12 @@ object ConfigRepository {
             } catch (e: Exception) {
                 lastError = e
             }
+        }
+
+        // Offline fallback ONLY reads already-synced authoritative cache — never re-seeds mock items
+        val cached = localCache?.getCachedConfigOrNull()
+        if (cached != null) {
+            return@withContext Result.success(cached)
         }
         Result.failure(lastError ?: IllegalStateException("Unable to load config.json"))
     }
@@ -309,9 +439,11 @@ export function generateJavaZeroDepClient(
   primaryUrl: string,
   fallbackUrl: string
 ): string {
-  return `// ShayariConfigManager.java — Zero third-party library required (uses built-in HttpURLConnection + org.json)
+  return `// ShayariConfigManager.java — Zero third-party library required (uses built-in HttpURLConnection + org.json + Authoritative Cache)
 package com.cyberking.shayarilok.remote;
 
+import android.content.Context;
+import android.content.SharedPreferences;
 import android.os.Handler;
 import android.os.Looper;
 import org.json.JSONArray;
@@ -327,6 +459,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class ShayariConfigManager {
+    private static final String PREF_NAME = "shayarilok_authoritative_cache";
+    private static final String KEY_CONFIG_JSON = "authoritative_config_json";
+    private static final String KEY_HAS_AUTHORITATIVE_SYNC = "has_authoritative_sync";
     private static final String[] ENDPOINTS = new String[]{
         "${primaryUrl}",
         "${fallbackUrl}"
@@ -374,7 +509,39 @@ public class ShayariConfigManager {
         public List<Shayari> shayariList = new ArrayList<>();
     }
 
+    public static void saveAuthoritativeCache(Context context, String rawJson) {
+        if (context == null || rawJson == null) return;
+        SharedPreferences prefs = context.getApplicationContext().getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
+        prefs.edit()
+            .putString(KEY_CONFIG_JSON, rawJson)
+            .putBoolean(KEY_HAS_AUTHORITATIVE_SYNC, true)
+            .commit();
+    }
+
+    public static AppConfig loadAuthoritativeCache(Context context) {
+        if (context == null) return null;
+        SharedPreferences prefs = context.getApplicationContext().getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
+        if (!prefs.getBoolean(KEY_HAS_AUTHORITATIVE_SYNC, false)) return null;
+        String raw = prefs.getString(KEY_CONFIG_JSON, null);
+        if (raw == null || raw.isEmpty()) return null;
+        try {
+            return parseJson(raw);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    public static void clearCache(Context context) {
+        if (context == null) return;
+        SharedPreferences prefs = context.getApplicationContext().getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
+        prefs.edit().remove(KEY_CONFIG_JSON).putBoolean(KEY_HAS_AUTHORITATIVE_SYNC, true).commit();
+    }
+
     public static void fetch(Callback callback) {
+        fetch(null, callback);
+    }
+
+    public static void fetch(Context context, Callback callback) {
         EXECUTOR.execute(() -> {
             Exception lastErr = null;
             for (String baseUrl : ENDPOINTS) {
@@ -387,6 +554,7 @@ public class ShayariConfigManager {
                     conn.setConnectTimeout(10000);
                     conn.setReadTimeout(12000);
                     conn.setUseCaches(false);
+                    conn.setRequestProperty("Cache-Control", "no-cache, no-store");
 
                     if (conn.getResponseCode() == 200) {
                         BufferedReader reader = new BufferedReader(
@@ -397,7 +565,11 @@ public class ShayariConfigManager {
                         while ((line = reader.readLine()) != null) sb.append(line);
                         reader.close();
 
-                        AppConfig parsed = parseJson(sb.toString());
+                        String rawBody = sb.toString();
+                        AppConfig parsed = parseJson(rawBody);
+                        if (context != null) {
+                            saveAuthoritativeCache(context, rawBody);
+                        }
                         MAIN_HANDLER.post(() -> callback.onSuccess(parsed));
                         return;
                     }
@@ -406,6 +578,11 @@ public class ShayariConfigManager {
                 } finally {
                     if (conn != null) conn.disconnect();
                 }
+            }
+            AppConfig cached = loadAuthoritativeCache(context);
+            if (cached != null) {
+                MAIN_HANDLER.post(() -> callback.onSuccess(cached));
+                return;
             }
             String errMsg = lastErr != null ? lastErr.getMessage() : "Failed to fetch config";
             MAIN_HANDLER.post(() -> callback.onError(errMsg));
@@ -531,21 +708,72 @@ export function generateFirestoreRealtimeListenerCode(
   siteId?: string | null
 ): string {
   const effectiveSiteId = siteId?.trim() || 'YOUR_ADMIN_UID';
-  return `// FirestoreRealtimeRepository.kt — Instant Real-Time Live Sync (Zero Delay)
+  return `// FirestoreRealtimeRepository.kt — Instant Real-Time Live Sync + Authoritative Cache Wipe
 package com.cyberking.shayarilok.data.remote
 
+import com.cyberking.shayarilok.data.local.ConfigLocalCache
+import com.cyberking.shayarilok.data.model.NotificationItem
+import com.cyberking.shayarilok.data.model.ShayariConfig
+import com.cyberking.shayarilok.data.model.ShayariItem
 import com.google.firebase.FirebaseApp
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.MetadataChanges
 
 class FirestoreRealtimeRepository(
+    private val localCache: ConfigLocalCache? = null,
     private val db: FirebaseFirestore = FirebaseFirestore.getInstance(
         FirebaseApp.getInstance(),
         "${firebaseAppletConfig.firestoreDatabaseId}"
     )
 ) {
     private var registration: ListenerRegistration? = null
+
+    fun mapSnapshotToConfig(data: Map<String, Any>): ShayariConfig {
+        val categories = (data["categories"] as? List<*>)
+            ?.mapNotNull { it?.toString()?.trim()?.takeIf { s -> s.isNotEmpty() } }
+            ?: listOf("All")
+
+        val notifications = (data["notifications"] as? List<*>)?.mapNotNull { raw ->
+            val m = raw as? Map<*, *> ?: return@mapNotNull null
+            NotificationItem(
+                id = (m["id"] as? Number)?.toInt() ?: 0,
+                title = m["title"]?.toString().orEmpty(),
+                message = m["message"]?.toString().orEmpty(),
+                badge = m["badge"]?.toString() ?: "App Info",
+                timeLabel = m["time_label"]?.toString() ?: "Today"
+            )
+        } ?: emptyList()
+
+        val shayaris = (data["shayari_list"] as? List<*>)?.mapNotNull { raw ->
+            val m = raw as? Map<*, *> ?: return@mapNotNull null
+            ShayariItem(
+                id = (m["id"] as? Number)?.toInt() ?: 0,
+                category = m["category"]?.toString() ?: "Love",
+                text = m["text"]?.toString().orEmpty(),
+                author = m["author"]?.toString().orEmpty(),
+                imageUrl = m["image_url"]?.toString().orEmpty()
+            )
+        } ?: emptyList()
+
+        return ShayariConfig(
+            appName = data["app_name"]?.toString() ?: "Shayari Lok",
+            latestVersionCode = (data["latest_version_code"] as? Number)?.toInt() ?: 1,
+            forceUpdateUrl = data["force_update_url"]?.toString().orEmpty(),
+            maintenanceMode = data["maintenance_mode"] as? Boolean ?: false,
+            maintenanceMessage = data["maintenance_message"]?.toString().orEmpty(),
+            privacyPolicyUrl = data["privacy_policy_url"]?.toString().orEmpty(),
+            socialLink = data["social_link"]?.toString().orEmpty(),
+            adsEnabled = data["ads_enabled"] as? Boolean ?: true,
+            bannerAdId = data["banner_ad_id"]?.toString().orEmpty(),
+            interstitialAdId = data["interstitial_ad_id"]?.toString().orEmpty(),
+            announcementTitle = data["announcement_title"]?.toString().orEmpty(),
+            announcementMessage = data["announcement_message"]?.toString().orEmpty(),
+            notifications = notifications,
+            categories = if (categories.isEmpty()) listOf("All") else categories,
+            shayariList = shayaris
+        )
+    }
 
     fun startLiveSync(
         onConfigUpdated: (Map<String, Any>) -> Unit,
@@ -560,7 +788,16 @@ class FirestoreRealtimeRepository(
                     onError(error)
                     return@addSnapshotListener
                 }
-                val data = snapshot?.data ?: return@addSnapshotListener
+                if (snapshot == null || !snapshot.exists()) {
+                    // Document deleted remotely -> wipe cached mock/seed state permanently
+                    localCache?.wipeAllMockAndSeedData()
+                    return@addSnapshotListener
+                }
+                val data = snapshot.data ?: return@addSnapshotListener
+                // Persist authoritative snapshot immediately (even if shayari_list or notifications is empty [])
+                val mappedConfig = mapSnapshotToConfig(data)
+                localCache?.replaceConfigAuthoritatively(mappedConfig)
+
                 // Delivers maintenance_mode, latest_version_code, categories, notifications, announcements, shayari_list, languages & theme instantaneously
                 onConfigUpdated(data)
 
@@ -631,7 +868,12 @@ class LocaleSettingsManager(
         registration = db.collection("publicSites")
             .document("${effectiveSiteId}")
             .addSnapshotListener { snap, _ ->
-                val data = snap?.data ?: return@addSnapshotListener
+                if (snap == null || !snap.exists()) {
+                    prefs.edit().remove("selected_lang_code").putBoolean("has_synced_locales", true).commit()
+                    onUpdate(emptyList(), emptyList(), "#4f46e5", "#e11d48")
+                    return@addSnapshotListener
+                }
+                val data = snap.data ?: return@addSnapshotListener
 
                 val rawLangs = (data["supported_languages"] as? List<*>) ?: emptyList<Any>()
                 val languages = rawLangs.mapNotNull { item ->
@@ -652,6 +894,13 @@ class LocaleSettingsManager(
                         uiLabels = labelsMap
                     )
                 }
+
+                // If Admin deleted or disabled the user's previously chosen language, purge it from SharedPreferences immediately
+                val savedCode = prefs.getString("selected_lang_code", null)
+                if (savedCode != null && languages.none { it.code == savedCode }) {
+                    prefs.edit().remove("selected_lang_code").commit()
+                }
+                prefs.edit().putBoolean("has_synced_locales", true).commit()
 
                 val rawCountries = (data["supported_countries"] as? List<*>) ?: emptyList<Any>()
                 val countries = rawCountries.mapNotNull { item ->
@@ -756,32 +1005,30 @@ object RemoteGateController {
 }
 
 class MainActivity : AppCompatActivity() {
-    private val firestoreSync by lazy { FirestoreRealtimeRepository() }
+    private val localCache by lazy { ConfigLocalCache(this) }
+    private val firestoreSync by lazy { FirestoreRealtimeRepository(localCache = localCache) }
     private val localeManager by lazy { LocaleSettingsManager(this) }
     private var liveLanguages: List<RemoteLanguage> = emptyList()
     private var liveCountries: List<RemoteCountry> = emptyList()
 
     override fun onStart() {
         super.onStart()
+        // Hydrate ONLY from authoritative remote cache on restart — never re-seed deleted dummy items
+        localCache.getCachedConfigOrNull()?.let { cached ->
+            RemoteGateController.applyAdminRemoteControl(this, cached)
+        }
+
         firestoreSync.startLiveSync(
             onConfigUpdated = { data ->
-                val cfg = ShayariConfig(
-                    appName = data["app_name"]?.toString() ?: "Shayari Lok",
-                    latestVersionCode = (data["latest_version_code"] as? Number)?.toInt() ?: 1,
-                    forceUpdateUrl = data["force_update_url"]?.toString() ?: "",
-                    maintenanceMode = data["maintenance_mode"] as? Boolean ?: false,
-                    maintenanceMessage = data["maintenance_message"]?.toString() ?: "",
-                    privacyPolicyUrl = data["privacy_policy_url"]?.toString() ?: "",
-                    socialLink = data["social_link"]?.toString() ?: "",
-                    adsEnabled = data["ads_enabled"] as? Boolean ?: true,
-                    bannerAdId = "",
-                    interstitialAdId = "",
-                    announcementTitle = data["announcement_title"]?.toString() ?: "",
-                    announcementMessage = data["announcement_message"]?.toString() ?: ""
-                )
+                val cfg = firestoreSync.mapSnapshotToConfig(data)
                 RemoteGateController.applyAdminRemoteControl(this, cfg)
             },
-            onError = { /* Fallback to cached JSON */ }
+            onError = {
+                // Offline fallback reads authoritative cache only; never injects hardcoded mock records
+                localCache.getCachedConfigOrNull()?.let { cached ->
+                    RemoteGateController.applyAdminRemoteControl(this, cached)
+                }
+            }
         )
 
         localeManager.observeLiveLanguagesAndTheme { langs, countries, _, _ ->

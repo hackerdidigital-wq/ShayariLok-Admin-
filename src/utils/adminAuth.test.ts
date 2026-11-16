@@ -1,17 +1,23 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  AUTHORIZED_ADMIN_EMAILS,
   PRIMARY_ADMIN_EMAIL,
+  SECONDARY_ADMIN_EMAIL,
   classifyFirebaseAuthError,
   hasSandboxQueryFlag,
   isAuthorizedAdminEmail,
   isLocalPreviewHost,
 } from './adminAuth';
 
-test('isAuthorizedAdminEmail validates primary verified admin and rejects unverified or random emails', () => {
+test('isAuthorizedAdminEmail validates verified admins and rejects unverified or random emails', () => {
+  assert.ok(AUTHORIZED_ADMIN_EMAILS.includes('baamniyad749@gmail.com'));
   assert.equal(isAuthorizedAdminEmail(PRIMARY_ADMIN_EMAIL, true), true);
+  assert.equal(isAuthorizedAdminEmail(SECONDARY_ADMIN_EMAIL, true), true);
   assert.equal(isAuthorizedAdminEmail('BAMNIYAD749@GMAIL.COM', true), true);
+  assert.equal(isAuthorizedAdminEmail('BAAMNIYAD749@GMAIL.COM', true), true);
   assert.equal(isAuthorizedAdminEmail(PRIMARY_ADMIN_EMAIL, false), false);
+  assert.equal(isAuthorizedAdminEmail(SECONDARY_ADMIN_EMAIL, false), false);
   assert.equal(isAuthorizedAdminEmail('intruder@gmail.com', true), false);
   assert.equal(
     isAuthorizedAdminEmail('co-admin@shayarilok.in', true, ['co-admin@shayarilok.in']),

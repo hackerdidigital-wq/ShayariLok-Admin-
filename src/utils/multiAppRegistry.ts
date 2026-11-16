@@ -1,9 +1,15 @@
 import type { ShayariLokConfig } from '../types/config';
+import {
+  filterTombstonedSeedConfig,
+  isScopeInitialized,
+  markScopeInitialized,
+} from './cacheTombstones';
 import { DEFAULT_CONFIG, PACKAGE_ID, normalizeConfig } from './configHelpers';
 
 const APPS_REGISTRY_KEY = 'shayarilok_multi_app_registry_v1';
 const ACTIVE_APP_KEY = 'shayarilok_active_app_id_v1';
 const LEGACY_DRAFT_KEY = 'shayari_lok_local_draft';
+const CANONICAL_DRAFT_KEY = 'shayarilok_local_draft_v1';
 
 export interface ManagedAppProfile {
   id: string;
@@ -142,6 +148,22 @@ export function getAppDraftStorageKey(appId: string): string {
     : `shayarilok_app_draft_${appId}_v1`;
 }
 
+export function hasAppDraftStored(appId: string): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    if (window.localStorage.getItem(getAppDraftStorageKey(appId))) return true;
+    if (
+      appId === 'default' &&
+      window.localStorage.getItem(CANONICAL_DRAFT_KEY)
+    ) {
+      return true;
+    }
+    return isScopeInitialized(`config:${appId}`);
+  } catch {
+    return false;
+  }
+}
+
 export function loadAppDraft(
   app: ManagedAppProfile
 ): ShayariLokConfig {
@@ -149,17 +171,31 @@ export function loadAppDraft(
     return { ...DEFAULT_CONFIG, app_name: app.name };
   }
   try {
-    const raw = window.localStorage.getItem(getAppDraftStorageKey(app.id));
+    const raw =
+      window.localStorage.getItem(getAppDraftStorageKey(app.id)) ??
+      (app.id === 'default'
+        ? window.localStorage.getItem(CANONICAL_DRAFT_KEY)
+        : null);
     if (!raw) {
-      return app.id === 'default'
-        ? { ...DEFAULT_CONFIG }
-        : {
-            ...DEFAULT_CONFIG,
-            app_name: app.name,
-            force_update_url: `https://play.google.com/store/apps/details?id=${app.packageId}`,
-            shayari_list: [],
-            notifications: [],
-          };
+      if (isScopeInitialized(`config:${app.id}`)) {
+        return {
+          ...DEFAULT_CONFIG,
+          app_name: app.name,
+          force_update_url: `https://play.google.com/store/apps/details?id=${app.packageId}`,
+          shayari_list: [],
+          notifications: [],
+        };
+      }
+      if (app.id === 'default') {
+        return filterTombstonedSeedConfig('default', { ...DEFAULT_CONFIG });
+      }
+      return {
+        ...DEFAULT_CONFIG,
+        app_name: app.name,
+        force_update_url: `https://play.google.com/store/apps/details?id=${app.packageId}`,
+        shayari_list: [],
+        notifications: [],
+      };
     }
     return normalizeConfig(JSON.parse(raw));
   } catch {
@@ -170,10 +206,12 @@ export function loadAppDraft(
 export function saveAppDraft(appId: string, config: ShayariLokConfig): void {
   if (typeof window === 'undefined') return;
   try {
-    window.localStorage.setItem(
-      getAppDraftStorageKey(appId),
-      JSON.stringify(config)
-    );
+    const serialized = JSON.stringify(config);
+    window.localStorage.setItem(getAppDraftStorageKey(appId), serialized);
+    if (appId === 'default') {
+      window.localStorage.setItem(CANONICAL_DRAFT_KEY, serialized);
+    }
+    markScopeInitialized(`config:${appId}`);
   } catch {
     // Ignore
   }

@@ -104,4 +104,17 @@ test('code generators include all 15 config fields and maintenance/force-update 
   assert.equal(fullPack.includes('RemoteGateController.applyAdminRemoteControl'), true);
   assert.equal(fullPack.includes('showLanguageAndCountryPickerDialog'), true);
   assert.equal(fullPack.includes('admin_site_app2'), true);
+
+  // Authoritative cache wipe & replace guarantees (never restore deleted mocks on restart)
+  assert.equal(kotlin.includes('replaceAllAuthoritatively'), true);
+  assert.equal(kotlin.includes('deleteAll()'), true);
+  assert.equal(kotlin.includes('replaceConfigAuthoritatively'), true);
+  assert.equal(kotlin.includes('has_authoritative_sync'), true);
+  assert.equal(kotlin.includes('wipeAllMockAndSeedData'), true);
+  assert.equal(java.includes('saveAuthoritativeCache'), true);
+  assert.equal(java.includes('clearCache'), true);
+  assert.equal(firestoreLive.includes('wipeAllMockAndSeedData'), true);
+  assert.equal(firestoreLive.includes('replaceConfigAuthoritatively'), true);
+  assert.equal(localeSync.includes('remove("selected_lang_code")'), true);
 });
+

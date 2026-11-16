@@ -24,6 +24,7 @@ import {
   ensureUserProfile,
   loadCloudDraft,
   loadCloudProxyProfile,
+  loadPublicWebsiteStateOnce,
   publishPublicWebsiteState,
   recordPublishLog,
   saveCloudDraft,
@@ -53,6 +54,13 @@ import {
   isLocalPreviewHost,
 } from './utils/adminAuth';
 import {
+  clearConfigTombstonesForApp,
+  recordDeletedConfigItems,
+  recordDeletedScheduledNotifications,
+  recordDeletedWebsiteContentItems,
+  unmarkReaddedConfigItems,
+} from './utils/cacheTombstones';
+import {
   DEFAULT_CONFIG,
   hasUnsavedChanges,
 } from './utils/configHelpers';
@@ -72,6 +80,7 @@ import {
 } from './utils/localizationAndExtras';
 import {
   createManagedAppProfile,
+  hasAppDraftStored,
   loadActiveAppId,
   loadAppDraft,
   loadManagedApps,
@@ -112,13 +121,14 @@ import {
   type PublicSitePageId,
 } from './utils/siteRoutes';
 import {
-  DEMO_APP_USERS,
-  DEMO_CHAT_ROOMS,
-  DEMO_SOCIAL_EDGES,
+  loadSandboxSocialState,
+  SANDBOX_SOCIAL_CHANGED_EVENT,
+  type SandboxSocialState,
 } from './utils/socialMonitor';
 import {
   broadcastLiveWebsiteState,
   loadWebsiteContent,
+  preparePublicSiteForFirestore,
   saveWebsiteContent,
 } from './utils/websiteContent';
 
@@ -257,11 +267,21 @@ export default function App() {
   >('local');
   const [publicSyncMessage, setPublicSyncMessage] = useState('');
 
+  const [hydratedSiteId, setHydratedSiteId] = useState<string>('');
+  const [sandboxSocial, setSandboxSocial] = useState<SandboxSocialState>(() =>
+    loadSandboxSocialState()
+  );
+
   const initialAutoSyncedRef = useRef(false);
   const configRef = useRef(config);
   configRef.current = config;
   const appExtrasRef = useRef(appExtras);
   appExtrasRef.current = appExtras;
+  const websiteContentRef = useRef(websiteContent);
+  websiteContentRef.current = websiteContent;
+  const hydratedSiteIdRef = useRef(hydratedSiteId);
+  hydratedSiteIdRef.current = hydratedSiteId;
+  const lastSyncedSignatureRef = useRef<string>('');
 
   const canEnterLocalSandbox = useMemo(() => {
     if (typeof window === 'undefined') return false;
@@ -385,6 +405,19 @@ export default function App() {
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
 
+  // Keep dashboard/analytics sandbox counts synchronized with persistent sandbox storage
+  useEffect(() => {
+    const syncSandbox = () => {
+      setSandboxSocial(loadSandboxSocialState());
+    };
+    window.addEventListener(SANDBOX_SOCIAL_CHANGED_EVENT, syncSandbox);
+    window.addEventListener('storage', syncSandbox);
+    return () => {
+      window.removeEventListener(SANDBOX_SOCIAL_CHANGED_EVENT, syncSandbox);
+      window.removeEventListener('storage', syncSandbox);
+    };
+  }, []);
+
   // Persist per-app local draft & broadcast live updates in real time
   useEffect(() => {
     if (enterprise.autoSaveDraft) {
@@ -395,11 +428,28 @@ export default function App() {
     broadcastLiveWebsiteState(config, websiteContent, enterprise);
   }, [activeApp.id, config, appExtras, websiteContent, enterprise]);
 
-  // Fast 120ms debounced Firestore real-time mirror when signed in as verified admin
+  // Fast 120ms debounced Firestore real-time mirror AFTER authoritative cloud hydration completes
   useEffect(() => {
     if (!user || !isAuthorizedAdmin || !activeSiteId) {
       setRealtimeStatus('local');
       setLastSyncLatencyMs(null);
+      return;
+    }
+    if (hydratedSiteId !== activeSiteId) {
+      setRealtimeStatus('syncing');
+      return;
+    }
+    const payloadSignature = JSON.stringify(
+      preparePublicSiteForFirestore(
+        config,
+        websiteContent,
+        enterprise.organizationName,
+        enterprise.supportEmail,
+        appExtras
+      )
+    );
+    if (payloadSignature === lastSyncedSignatureRef.current) {
+      setRealtimeStatus('live');
       return;
     }
     setRealtimeStatus('syncing');
@@ -416,6 +466,7 @@ export default function App() {
         appExtras
       )
         .then(() => {
+          lastSyncedSignatureRef.current = payloadSignature;
           const elapsed =
             typeof performance !== 'undefined'
               ? Math.round(performance.now() - startedAt)
@@ -437,11 +488,13 @@ export default function App() {
     user,
     isAuthorizedAdmin,
     activeSiteId,
+    hydratedSiteId,
     config,
     appExtras,
     websiteContent,
     enterprise.organizationName,
     enterprise.supportEmail,
+    showBanner,
   ]);
 
   // Apply workspace density & Devanagari typography attributes
@@ -504,6 +557,17 @@ export default function App() {
       }
 
       try {
+        try {
+          await currentUser.reload();
+        } catch {
+          // Ignore transient offline reload failure
+        }
+        try {
+          await currentUser.getIdToken(true);
+        } catch {
+          // Ignore transient offline token refresh failure
+        }
+
         let allowlisted = false;
         if (!isAuthorizedAdminEmail(currentUser.email, currentUser.emailVerified)) {
           allowlisted = await checkIsCloudAllowlistedAdmin(currentUser.uid);
@@ -569,20 +633,102 @@ export default function App() {
     };
   }, [showBanner]);
 
-  // Live snapshot confirmation listener on active publicSites/{siteId}
+  // Cloud-first authoritative hydration + real-time listener on active publicSites/{siteId}
+  // Ensures deletions performed in Firestore or Admin Panel are never overwritten by stale local defaults.
   useEffect(() => {
-    if (!user || !isAuthorizedAdmin || !activeSiteId) return;
-    const unsubSite = subscribePublicWebsiteState(
-      activeSiteId,
-      () => {
-        setRealtimeStatus('live');
-      },
-      () => {
-        setRealtimeStatus('local');
+    if (!user || !isAuthorizedAdmin || !activeSiteId) {
+      setHydratedSiteId('');
+      lastSyncedSignatureRef.current = '';
+      return;
+    }
+
+    let cancelled = false;
+    setHydratedSiteId('');
+    lastSyncedSignatureRef.current = '';
+
+    const applyRemoteSnapshot = (
+      remoteSnap: Awaited<ReturnType<typeof loadPublicWebsiteStateOnce>>
+    ) => {
+      if (!remoteSnap) return;
+      const mergedWeb: WebsiteContentSettings = {
+        ...remoteSnap.websiteContent,
+        socialLinks: websiteContentRef.current.socialLinks,
+      };
+      const resolvedExtras = remoteSnap.extras ?? appExtrasRef.current;
+      const sig = JSON.stringify(
+        preparePublicSiteForFirestore(
+          remoteSnap.config,
+          mergedWeb,
+          remoteSnap.organizationName,
+          remoteSnap.supportEmail,
+          resolvedExtras
+        )
+      );
+      lastSyncedSignatureRef.current = sig;
+      saveAppDraft(activeApp.id, remoteSnap.config);
+      saveWebsiteContent(mergedWeb);
+      if (remoteSnap.extras) {
+        saveAppExtras(activeApp.id, remoteSnap.extras);
+        setAppExtras(remoteSnap.extras);
       }
-    );
-    return () => unsubSite();
-  }, [user, isAuthorizedAdmin, activeSiteId]);
+      setConfig(remoteSnap.config);
+      setBaselineConfig(remoteSnap.config);
+      setWebsiteContent(mergedWeb);
+    };
+
+    let unsubSite: (() => void) | null = null;
+
+    loadPublicWebsiteStateOnce(activeSiteId)
+      .then((remoteSnap) => {
+        if (cancelled) return;
+        if (remoteSnap) {
+          applyRemoteSnapshot(remoteSnap);
+        } else if (!hasAppDraftStored(activeApp.id)) {
+          saveAppDraft(activeApp.id, configRef.current);
+        }
+        setHydratedSiteId(activeSiteId);
+        setRealtimeStatus('live');
+
+        unsubSite = subscribePublicWebsiteState(
+          activeSiteId,
+          (snap, meta) => {
+            if (cancelled) return;
+            setRealtimeStatus('live');
+            if (meta.hasPendingWrites) return;
+            const mergedWeb: WebsiteContentSettings = {
+              ...snap.websiteContent,
+              socialLinks: websiteContentRef.current.socialLinks,
+            };
+            const resolvedExtras = snap.extras ?? appExtrasRef.current;
+            const incomingSig = JSON.stringify(
+              preparePublicSiteForFirestore(
+                snap.config,
+                mergedWeb,
+                snap.organizationName,
+                snap.supportEmail,
+                resolvedExtras
+              )
+            );
+            if (incomingSig !== lastSyncedSignatureRef.current) {
+              applyRemoteSnapshot(snap);
+            }
+          },
+          () => {
+            if (!cancelled) setRealtimeStatus('local');
+          }
+        );
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setHydratedSiteId(activeSiteId);
+        setRealtimeStatus('local');
+      });
+
+    return () => {
+      cancelled = true;
+      if (unsubSite) unsubSite();
+    };
+  }, [user, isAuthorizedAdmin, activeSiteId, activeApp.id]);
 
   const handleSyncFromGitHub = useCallback(
     async (targetSettings?: GitHubSettings) => {
@@ -606,6 +752,7 @@ export default function App() {
         );
         setConfig(result.config);
         setBaselineConfig(result.config);
+        saveAppDraft(activeApp.id, result.config);
         setCurrentSha(result.sha);
         saveLocalSha(result.sha);
         setSyncStatus('synced');
@@ -712,18 +859,35 @@ export default function App() {
 
   const handleUpdateConfig = useCallback(
     (patch: Partial<ShayariLokConfig>, instantSync?: boolean) => {
-      const next = { ...configRef.current, ...patch };
+      const prev = configRef.current;
+      const next = { ...prev, ...patch };
+      recordDeletedConfigItems(activeApp.id, prev, next);
+      unmarkReaddedConfigItems(activeApp.id, next);
+      saveAppDraft(activeApp.id, next);
       setConfig(next);
       if (instantSync) {
         void pushImmediateCloudSync(next);
       }
     },
-    [pushImmediateCloudSync]
+    [activeApp.id, pushImmediateCloudSync]
+  );
+
+  const handleUpdateWebsiteContent = useCallback(
+    (next: WebsiteContentSettings) => {
+      recordDeletedWebsiteContentItems(websiteContentRef.current, next);
+      saveWebsiteContent(next);
+      setWebsiteContent(next);
+    },
+    []
   );
 
   const handleUpdateExtras = useCallback(
     (next: AppLocalizationExtras, instantSync?: boolean) => {
       const safe = normalizeAppExtras(next);
+      recordDeletedScheduledNotifications(
+        appExtrasRef.current.scheduled_notifications,
+        safe.scheduled_notifications
+      );
       setAppExtras(safe);
       saveAppExtras(activeApp.id, safe);
       if (instantSync) {
@@ -1150,7 +1314,10 @@ export default function App() {
   };
 
   const handleResetToSeed = () => {
-    setConfig({ ...DEFAULT_CONFIG });
+    clearConfigTombstonesForApp(activeApp.id);
+    const seeded = { ...DEFAULT_CONFIG };
+    saveAppDraft(activeApp.id, seeded);
+    setConfig(seeded);
     logActivity('Factory Reset', 'Restored default Shayari Lok seed config');
   };
 
@@ -1248,16 +1415,16 @@ export default function App() {
   ]);
 
   const effectiveAppUsers = useMemo(
-    () => (isAuthorizedAdmin ? cloudAppUsers : DEMO_APP_USERS),
-    [isAuthorizedAdmin, cloudAppUsers]
+    () => (isAuthorizedAdmin ? cloudAppUsers : sandboxSocial.users),
+    [isAuthorizedAdmin, cloudAppUsers, sandboxSocial.users]
   );
   const effectiveSocialEdges = useMemo(
-    () => (isAuthorizedAdmin ? cloudSocialEdges : DEMO_SOCIAL_EDGES),
-    [isAuthorizedAdmin, cloudSocialEdges]
+    () => (isAuthorizedAdmin ? cloudSocialEdges : sandboxSocial.edges),
+    [isAuthorizedAdmin, cloudSocialEdges, sandboxSocial.edges]
   );
   const effectiveChatRooms = useMemo(
-    () => (isAuthorizedAdmin ? cloudChatRooms : DEMO_CHAT_ROOMS),
-    [isAuthorizedAdmin, cloudChatRooms]
+    () => (isAuthorizedAdmin ? cloudChatRooms : sandboxSocial.rooms),
+    [isAuthorizedAdmin, cloudChatRooms, sandboxSocial.rooms]
   );
   const userDataMode: 'live' | 'sandbox' = isAuthorizedAdmin
     ? 'live'
@@ -1527,7 +1694,7 @@ export default function App() {
               config={config}
               onUpdate={handleUpdateConfig}
               websiteContent={websiteContent}
-              onUpdateWebsiteContent={setWebsiteContent}
+              onUpdateWebsiteContent={handleUpdateWebsiteContent}
               standaloneWebsiteUrl={standaloneWebsiteUrl}
               user={user}
               liveSyncing={liveSyncing}

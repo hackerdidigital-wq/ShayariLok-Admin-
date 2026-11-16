@@ -12,7 +12,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import {
-  PRIMARY_ADMIN_EMAIL,
+  AUTHORIZED_ADMIN_EMAILS,
   classifyFirebaseAuthError,
 } from '../utils/adminAuth';
 import { copyTextWithFeedback } from '../utils/clipboardToast';
@@ -104,7 +104,7 @@ export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({
               <p className="text-xs text-red-700 leading-relaxed">
                 अकाउंट <strong className="font-mono">{user.email || user.uid}</strong>{' '}
                 एडमिन के रूप में अधिकृत नहीं है। केवल वेरीफाइड एडमिन (
-                <code className="font-mono">{PRIMARY_ADMIN_EMAIL}</code> या allowlisted
+                <code className="font-mono">{AUTHORIZED_ADMIN_EMAILS.join(' / ')}</code> या allowlisted
                 co-admin) ही पैनल खोल सकते हैं।
               </p>
             </div>
@@ -128,7 +128,7 @@ export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({
               <p>
                 Authorized Admin Email:{' '}
                 <code className="font-mono text-indigo-700 font-semibold">
-                  {PRIMARY_ADMIN_EMAIL}
+                  {AUTHORIZED_ADMIN_EMAILS.join(' · ')}
                 </code>
               </p>
               <p className="text-[11px] text-slate-500">
