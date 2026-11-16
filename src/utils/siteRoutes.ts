@@ -28,6 +28,7 @@ export interface StandaloneShareOptions {
 
 const ADMIN_SECTIONS: ReadonlyArray<Exclude<AdminSection, 'settings'>> = [
   'dashboard',
+  'app-studio',
   'shayari',
   'notifications',
   'localization',

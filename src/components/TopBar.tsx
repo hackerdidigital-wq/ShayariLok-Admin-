@@ -44,6 +44,7 @@ interface TopBarProps {
 
 const SECTION_TITLES: Record<AdminSection, string> = {
   dashboard: 'Dashboard & Control',
+  'app-studio': 'Banners, Branding, Legal & FAQs',
   shayari: 'Shayari Manager',
   notifications: 'Notifications & Alerts',
   localization: 'Languages, Countries & AI Themes',

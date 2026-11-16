@@ -98,3 +98,11 @@ test('firestore.rules authorizes bamniyad749@gmail.com and baamniyad749@gmail.co
   assert.match(rules, /!\('ownerId' in existing\(\)\)\s*\|\|\s*incoming\(\)\.ownerId == existing\(\)\.ownerId/);
   assert.match(rules, /\(isVerifiedAdminEmail\(\)\s*&&\s*isOwner\(siteId\)\)/);
 });
+
+test('firestore.rules covers publicSites/appConfig/main, banners, and faqs in rules and blueprint', () => {
+  const paths = Object.keys(blueprint.firestore);
+  assert.ok(paths.includes('/publicSites/{siteId}/appConfig/{configId}'));
+  assert.ok(paths.includes('/publicSites/{siteId}/banners/{bannerId}'));
+  assert.ok(paths.includes('/publicSites/{siteId}/faqs/{faqId}'));
+  assert.match(rules, /subCollection in \['appConfig', 'banners', 'faqs', 'legal', 'main'\]/);
+});

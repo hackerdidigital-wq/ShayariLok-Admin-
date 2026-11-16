@@ -53,6 +53,7 @@ export interface PublishLogEntry {
 
 export type AdminSection =
   | 'dashboard'
+  | 'app-studio'
   | 'shayari'
   | 'notifications'
   | 'localization'
@@ -295,4 +296,42 @@ export interface AppLocalizationExtras {
   dynamic_theme: DynamicThemeConfig;
   scheduled_notifications: ScheduledNotificationItem[];
   engagement_tools: EngagementToolsConfig;
+}
+
+export interface AppBannerItem {
+  id: string;
+  title: string;
+  subtitle: string;
+  imageUrl: string;
+  actionUrl: string;
+  ctaLabel: string;
+  active: boolean;
+  order: number;
+}
+
+export interface PrivacyPolicySection {
+  id: string;
+  heading: string;
+  body: string;
+}
+
+export interface FaqItem {
+  id: string;
+  question: string;
+  answer: string;
+  category: string;
+  order: number;
+  active: boolean;
+}
+
+export interface AppControlStudioConfig {
+  banners: AppBannerItem[];
+  admob_app_id: string;
+  native_ad_id: string;
+  app_logo_url: string;
+  privacy_policy_title: string;
+  privacy_policy_text: string;
+  privacy_policy_sections: PrivacyPolicySection[];
+  privacy_last_updated: string;
+  faqs: FaqItem[];
 }

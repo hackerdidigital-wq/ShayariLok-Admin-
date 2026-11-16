@@ -817,6 +817,18 @@
       "schema": { "$ref": "#/entities/PublicSite" },
       "description": "Publicly readable real-time Shayari Lok website state keyed by owner UID."
     },
+    "/publicSites/{siteId}/appConfig/{configId}": {
+      "schema": { "$ref": "#/entities/PublicSite" },
+      "description": "Live ShayariLok User App remote control document (AdMob IDs, Logo, Theme, Dark Mode, Privacy Policy, Banners, and FAQs)."
+    },
+    "/publicSites/{siteId}/banners/{bannerId}": {
+      "schema": { "$ref": "#/entities/PublicSite" },
+      "description": "Individual carousel banner documents with clickable external URLs."
+    },
+    "/publicSites/{siteId}/faqs/{faqId}": {
+      "schema": { "$ref": "#/entities/PublicSite" },
+      "description": "Individual FAQ items with questions, answers, and categories."
+    },
     "/appUsers/{appUserId}": {
       "schema": { "$ref": "#/entities/AppUser" },
       "description": "Registered Android app user profiles, locations, follower/like counts, and block flags."

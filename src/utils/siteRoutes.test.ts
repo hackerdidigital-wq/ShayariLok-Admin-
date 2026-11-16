@@ -22,6 +22,10 @@ test('parseAppRoute routes admin, full-screen settings, and live website paths c
     view: 'admin',
     section: 'shayari',
   });
+  assert.deepEqual(parseAppRoute('#/app-studio'), {
+    view: 'admin',
+    section: 'app-studio',
+  });
   assert.deepEqual(parseAppRoute('#/website'), {
     view: 'admin',
     section: 'website',

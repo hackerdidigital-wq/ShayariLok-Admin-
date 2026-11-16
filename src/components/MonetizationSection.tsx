@@ -1,26 +1,49 @@
 import React, { useState } from 'react';
-import { Check, Copy, ExternalLink, Globe, Shield, Smartphone } from 'lucide-react';
-import type { ShayariLokConfig } from '../types/config';
-import { isLegacyPlaceholderPolicyUrl } from '../utils/siteRoutes';
+import {
+  Check,
+  CloudUpload,
+  Copy,
+  ExternalLink,
+  Globe,
+  Shield,
+  Smartphone,
+} from 'lucide-react';
+import type {
+  AppControlStudioConfig,
+  ShayariLokConfig,
+} from '../types/config';
+import {
+  GOOGLE_TEST_ADMOB_CONFIG,
+  validateAdMobId,
+} from '../utils/appControlStudio';
 import { copyTextWithFeedback } from '../utils/clipboardToast';
+import { isLegacyPlaceholderPolicyUrl } from '../utils/siteRoutes';
 
 interface MonetizationSectionProps {
   config: ShayariLokConfig;
-  onUpdate: (patch: Partial<ShayariLokConfig>) => void;
+  control: AppControlStudioConfig;
+  onUpdate: (patch: Partial<ShayariLokConfig>, instantSync?: boolean) => void;
+  onUpdateControl: (
+    next: AppControlStudioConfig,
+    instantSync?: boolean
+  ) => void;
+  onSaveAndSync: () => Promise<void>;
   hostedPrivacyUrl?: string;
   hostedWebsiteUrl?: string;
 }
 
-const GOOGLE_TEST_BANNER = 'ca-app-pub-3940256099942544/6300978111';
-const GOOGLE_TEST_INTERSTITIAL = 'ca-app-pub-3940256099942544/1033173712';
-
 export const MonetizationSection: React.FC<MonetizationSectionProps> = ({
   config,
+  control,
   onUpdate,
+  onUpdateControl,
+  onSaveAndSync,
   hostedPrivacyUrl,
   hostedWebsiteUrl,
 }) => {
   const [copiedPolicy, setCopiedPolicy] = useState(false);
+  const [savingAds, setSavingAds] = useState(false);
+
   const usingLegacyPlaceholder = isLegacyPlaceholderPolicyUrl(
     config.privacy_policy_url
   );
@@ -28,6 +51,11 @@ export const MonetizationSection: React.FC<MonetizationSectionProps> = ({
     usingLegacyPlaceholder && hostedPrivacyUrl
       ? hostedPrivacyUrl
       : config.privacy_policy_url || hostedPrivacyUrl || './privacy.html';
+
+  const appIdCheck = validateAdMobId(control.admob_app_id, 'app');
+  const bannerCheck = validateAdMobId(config.banner_ad_id, 'unit');
+  const interCheck = validateAdMobId(config.interstitial_ad_id, 'unit');
+  const nativeCheck = validateAdMobId(control.native_ad_id, 'unit');
 
   const handleCopyHostedPolicy = async () => {
     const target = hostedPrivacyUrl || config.privacy_policy_url;
@@ -39,23 +67,32 @@ export const MonetizationSection: React.FC<MonetizationSectionProps> = ({
     }
   };
 
+  const handleSaveAdMobNow = async () => {
+    setSavingAds(true);
+    try {
+      await onSaveAndSync();
+    } finally {
+      setSavingAds(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
-      {/* AdMob Master Controls */}
+      {/* AdMob Control Center */}
       <section className="bg-white border border-slate-200 rounded-xl p-6 space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
           <div className="flex items-start gap-3">
             <Smartphone className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />
             <div>
               <h2 className="font-display text-base font-semibold text-slate-900">
-                Google AdMob Monetization (
+                Google AdMob Control Center (
                 <code className="font-mono text-xs text-slate-500">
-                  ads_enabled
+                  ads_enabled · admob_app_id · native_ad_id
                 </code>
                 )
               </h2>
               <p className="text-sm text-slate-500">
-                सभी विज्ञापन यूनिट्स को एक स्विच से ऑन/ऑफ़ करें और लाइव Ad Unit IDs अपडेट करें।
+                सभी विज्ञापन यूनिट्स को एक स्विच से ऑन/ऑफ़ करें और लाइव AdMob App, Banner, Interstitial व Native IDs तुरंत User App में सिंक करें।
               </p>
             </div>
           </div>
@@ -73,7 +110,9 @@ export const MonetizationSection: React.FC<MonetizationSectionProps> = ({
               role="switch"
               aria-checked={config.ads_enabled}
               aria-label="Toggle AdMob ads enabled"
-              onClick={() => onUpdate({ ads_enabled: !config.ads_enabled })}
+              onClick={() =>
+                onUpdate({ ads_enabled: !config.ads_enabled }, true)
+              }
               className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:ring-offset-2 ${
                 config.ads_enabled ? 'bg-emerald-600' : 'bg-slate-200'
               }`}
@@ -88,6 +127,36 @@ export const MonetizationSection: React.FC<MonetizationSectionProps> = ({
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div>
+            <label
+              htmlFor="admob-app-id-input"
+              className="block text-sm font-medium text-slate-700 mb-1.5"
+            >
+              AdMob App ID (
+              <code className="font-mono text-xs text-slate-500">
+                admob_app_id
+              </code>
+              )
+            </label>
+            <input
+              id="admob-app-id-input"
+              type="text"
+              value={control.admob_app_id}
+              onChange={(e) =>
+                onUpdateControl({ ...control, admob_app_id: e.target.value })
+              }
+              placeholder="ca-app-pub-xxxxxxxxxxxxxxxx~yyyyyyyyyy"
+              className="w-full px-3.5 py-2.5 text-sm font-mono bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500"
+            />
+            <p
+              className={`mt-1 text-[11px] ${
+                appIdCheck.valid ? 'text-slate-500' : 'text-amber-700'
+              }`}
+            >
+              {appIdCheck.message}
+            </p>
+          </div>
+
           <div>
             <label
               htmlFor="banner-ad-id-input"
@@ -107,6 +176,13 @@ export const MonetizationSection: React.FC<MonetizationSectionProps> = ({
               placeholder="ca-app-pub-xxxxxxxxxxxxxxxx/yyyyyyyyyy"
               className="w-full px-3.5 py-2.5 text-sm font-mono bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500"
             />
+            <p
+              className={`mt-1 text-[11px] ${
+                bannerCheck.valid ? 'text-slate-500' : 'text-amber-700'
+              }`}
+            >
+              {bannerCheck.message}
+            </p>
           </div>
 
           <div>
@@ -128,25 +204,81 @@ export const MonetizationSection: React.FC<MonetizationSectionProps> = ({
               placeholder="ca-app-pub-xxxxxxxxxxxxxxxx/zzzzzzzzzz"
               className="w-full px-3.5 py-2.5 text-sm font-mono bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500"
             />
+            <p
+              className={`mt-1 text-[11px] ${
+                interCheck.valid ? 'text-slate-500' : 'text-amber-700'
+              }`}
+            >
+              {interCheck.message}
+            </p>
+          </div>
+
+          <div>
+            <label
+              htmlFor="native-ad-id-input"
+              className="block text-sm font-medium text-slate-700 mb-1.5"
+            >
+              Native Ad Unit ID (
+              <code className="font-mono text-xs text-slate-500">
+                native_ad_id
+              </code>
+              )
+            </label>
+            <input
+              id="native-ad-id-input"
+              type="text"
+              value={control.native_ad_id}
+              onChange={(e) =>
+                onUpdateControl({ ...control, native_ad_id: e.target.value })
+              }
+              placeholder="ca-app-pub-xxxxxxxxxxxxxxxx/wwwwwwwwww"
+              className="w-full px-3.5 py-2.5 text-sm font-mono bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500"
+            />
+            <p
+              className={`mt-1 text-[11px] ${
+                nativeCheck.valid ? 'text-slate-500' : 'text-amber-700'
+              }`}
+            >
+              {nativeCheck.message}
+            </p>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100">
           <p className="text-xs text-slate-500">
-            टेस्टिंग के लिए Google AdMob के आधिकारिक सैंपल IDs का उपयोग कर सकते हैं।
+            टेस्टिंग के लिए Google AdMob के आधिकारिक सैंपल IDs भरें या अपनी लाइव IDs सेव करके User App में सिंक करें।
           </p>
-          <button
-            type="button"
-            onClick={() =>
-              onUpdate({
-                banner_ad_id: GOOGLE_TEST_BANNER,
-                interstitial_ad_id: GOOGLE_TEST_INTERSTITIAL,
-              })
-            }
-            className="px-3 py-1.5 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors whitespace-nowrap"
-          >
-            Fill Google Test Ad IDs
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                onUpdate({
+                  banner_ad_id: GOOGLE_TEST_ADMOB_CONFIG.banner_ad_id,
+                  interstitial_ad_id:
+                    GOOGLE_TEST_ADMOB_CONFIG.interstitial_ad_id,
+                });
+                onUpdateControl({
+                  ...control,
+                  admob_app_id: GOOGLE_TEST_ADMOB_CONFIG.admob_app_id,
+                  native_ad_id: GOOGLE_TEST_ADMOB_CONFIG.native_ad_id,
+                });
+              }}
+              className="px-3 py-2 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors whitespace-nowrap"
+            >
+              Fill Google Test Ad IDs
+            </button>
+            <button
+              type="button"
+              disabled={savingAds}
+              onClick={() => void handleSaveAdMobNow()}
+              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors whitespace-nowrap disabled:opacity-60"
+            >
+              <CloudUpload className="w-3.5 h-3.5" />
+              <span>
+                {savingAds ? 'Syncing AdMob...' : 'Save & Sync AdMob Settings'}
+              </span>
+            </button>
+          </div>
         </div>
       </section>
 
@@ -236,7 +368,9 @@ export const MonetizationSection: React.FC<MonetizationSectionProps> = ({
               <div className="flex flex-wrap items-center gap-2 pt-1">
                 <button
                   type="button"
-                  onClick={() => onUpdate({ privacy_policy_url: hostedPrivacyUrl })}
+                  onClick={() =>
+                    onUpdate({ privacy_policy_url: hostedPrivacyUrl })
+                  }
                   className="px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100"
                 >
                   Use Our Hosted Privacy URL
@@ -249,7 +383,9 @@ export const MonetizationSection: React.FC<MonetizationSectionProps> = ({
                   {copiedPolicy ? (
                     <>
                       <Check className="w-3.5 h-3.5 text-emerald-700" />
-                      <span className="text-emerald-700 font-semibold">Copied Successfully!</span>
+                      <span className="text-emerald-700 font-semibold">
+                        Copied Successfully!
+                      </span>
                     </>
                   ) : (
                     <>
@@ -283,4 +419,3 @@ export const MonetizationSection: React.FC<MonetizationSectionProps> = ({
     </div>
   );
 };
-

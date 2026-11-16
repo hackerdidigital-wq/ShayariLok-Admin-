@@ -17,6 +17,8 @@ export interface TombstoneStore {
   deletedSuvicharKeys: string[];
   deletedPhotoShayariKeys: string[];
   deletedScheduledNotifIds: string[];
+  deletedBannerIds: string[];
+  deletedFaqIds: string[];
   deletedSocialUserIds: string[];
   deletedSocialEdgeIds: string[];
   deletedChatRoomIds: string[];
@@ -31,6 +33,8 @@ function createEmptyStore(): TombstoneStore {
     deletedSuvicharKeys: [],
     deletedPhotoShayariKeys: [],
     deletedScheduledNotifIds: [],
+    deletedBannerIds: [],
+    deletedFaqIds: [],
     deletedSocialUserIds: [],
     deletedSocialEdgeIds: [],
     deletedChatRoomIds: [],
@@ -83,6 +87,8 @@ export function normalizeTombstoneStore(raw: unknown): TombstoneStore {
     deletedSuvicharKeys: normalizeStringList(obj.deletedSuvicharKeys),
     deletedPhotoShayariKeys: normalizeStringList(obj.deletedPhotoShayariKeys),
     deletedScheduledNotifIds: normalizeStringList(obj.deletedScheduledNotifIds),
+    deletedBannerIds: normalizeStringList(obj.deletedBannerIds),
+    deletedFaqIds: normalizeStringList(obj.deletedFaqIds),
     deletedSocialUserIds: normalizeStringList(obj.deletedSocialUserIds),
     deletedSocialEdgeIds: normalizeStringList(obj.deletedSocialEdgeIds),
     deletedChatRoomIds: normalizeStringList(obj.deletedChatRoomIds),

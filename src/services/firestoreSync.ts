@@ -5,6 +5,7 @@ import {
   doc,
   getDoc,
   getDocFromServer,
+  getDocs,
   limit,
   onSnapshot,
   orderBy,
@@ -12,10 +13,12 @@ import {
   serverTimestamp,
   setDoc,
   where,
+  writeBatch,
   type Unsubscribe,
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import type {
+  AppControlStudioConfig,
   AppLocalizationExtras,
   GitHubSettings,
   ProxySettings,
@@ -23,6 +26,10 @@ import type {
   ShayariLokConfig,
   WebsiteContentSettings,
 } from '../types/config';
+import {
+  normalizeAppControlConfig,
+  prepareAppConfigMainForFirestore,
+} from '../utils/appControlStudio';
 import { normalizeConfig, prepareDraftForFirestore } from '../utils/configHelpers';
 import { normalizeAppExtras } from '../utils/localizationAndExtras';
 import {
@@ -406,5 +413,206 @@ export function subscribePublicWebsiteState(
       }
     }
   );
+}
+
+export interface AppConfigMainRemoteSnapshot {
+  control: AppControlStudioConfig;
+  app_name?: string;
+  ads_enabled?: boolean;
+  banner_ad_id?: string;
+  interstitial_ad_id?: string;
+  privacy_policy_url?: string;
+  dynamic_theme?: AppLocalizationExtras['dynamic_theme'];
+}
+
+export async function loadAppControlMainOnce(
+  siteId?: string
+): Promise<AppConfigMainRemoteSnapshot | null> {
+  if (!db) return null;
+  const candidatePaths: Array<[string, string, string, string]> = [
+    ['publicSites', 'appConfig', 'main', 'config'],
+  ];
+  if (siteId?.trim() && siteId.trim() !== 'appConfig') {
+    candidatePaths.push(['publicSites', siteId.trim(), 'appConfig', 'main']);
+  }
+
+  for (const [c1, d1, c2, d2] of candidatePaths) {
+    const path = `${c1}/${d1}/${c2}/${d2}`;
+    const ref = doc(db, c1, d1, c2, d2);
+    try {
+      let snap;
+      try {
+        snap = await getDocFromServer(ref);
+      } catch {
+        snap = await getDoc(ref);
+      }
+      if (!snap.exists()) continue;
+      const data = snap.data() as Record<string, unknown>;
+      return {
+        control: normalizeAppControlConfig(data),
+        app_name:
+          typeof data.app_name === 'string' ? data.app_name : undefined,
+        ads_enabled:
+          typeof data.ads_enabled === 'boolean' ? data.ads_enabled : undefined,
+        banner_ad_id:
+          typeof data.banner_ad_id === 'string' ? data.banner_ad_id : undefined,
+        interstitial_ad_id:
+          typeof data.interstitial_ad_id === 'string'
+            ? data.interstitial_ad_id
+            : undefined,
+        privacy_policy_url:
+          typeof data.privacy_policy_url === 'string'
+            ? data.privacy_policy_url
+            : undefined,
+        dynamic_theme:
+          data.dynamic_theme && typeof data.dynamic_theme === 'object'
+            ? (data.dynamic_theme as AppLocalizationExtras['dynamic_theme'])
+            : undefined,
+      };
+    } catch (error) {
+      handleFirestoreError(error, OperationType.GET, path);
+    }
+  }
+  return null;
+}
+
+export function subscribeAppControlMain(
+  onData: (snapshot: AppConfigMainRemoteSnapshot, meta: PublicSiteSnapshotMeta) => void,
+  onError?: (error: Error) => void
+): Unsubscribe {
+  if (!db) return () => {};
+  const path = 'publicSites/appConfig/main/config';
+  const ref = doc(db, 'publicSites', 'appConfig', 'main', 'config');
+  return onSnapshot(
+    ref,
+    (snap) => {
+      if (!snap.exists()) return;
+      const data = snap.data() as Record<string, unknown>;
+      onData(
+        {
+          control: normalizeAppControlConfig(data),
+          app_name:
+            typeof data.app_name === 'string' ? data.app_name : undefined,
+          ads_enabled:
+            typeof data.ads_enabled === 'boolean' ? data.ads_enabled : undefined,
+          banner_ad_id:
+            typeof data.banner_ad_id === 'string' ? data.banner_ad_id : undefined,
+          interstitial_ad_id:
+            typeof data.interstitial_ad_id === 'string'
+              ? data.interstitial_ad_id
+              : undefined,
+          privacy_policy_url:
+            typeof data.privacy_policy_url === 'string'
+              ? data.privacy_policy_url
+              : undefined,
+          dynamic_theme:
+            data.dynamic_theme && typeof data.dynamic_theme === 'object'
+              ? (data.dynamic_theme as AppLocalizationExtras['dynamic_theme'])
+              : undefined,
+        },
+        {
+          fromCache: snap.metadata.fromCache,
+          hasPendingWrites: snap.metadata.hasPendingWrites,
+        }
+      );
+    },
+    (error) => {
+      try {
+        handleFirestoreError(error, OperationType.GET, path);
+      } catch (wrapped) {
+        if (onError && wrapped instanceof Error) {
+          onError(wrapped);
+        }
+      }
+    }
+  );
+}
+
+export async function publishAppControlMainState(
+  uid: string,
+  config: ShayariLokConfig,
+  extras: AppLocalizationExtras,
+  control: AppControlStudioConfig,
+  siteIdOverride?: string
+): Promise<void> {
+  if (!db) throw new Error('Firestore is not available.');
+  const firestore = db;
+  const payload = prepareAppConfigMainForFirestore(uid, config, extras, control);
+  const targetSiteId = siteIdOverride?.trim() || uid;
+
+  // 1. Canonical publicSites/appConfig/main/config document
+  const canonicalPath = 'publicSites/appConfig/main/config';
+  try {
+    await setDoc(doc(firestore, 'publicSites', 'appConfig', 'main', 'config'), {
+      ...payload,
+      updatedAt: serverTimestamp(),
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, canonicalPath);
+  }
+
+  // 2. Site-scoped mirror publicSites/{siteId}/appConfig/main
+  if (targetSiteId && targetSiteId !== 'appConfig') {
+    const scopedPath = `publicSites/${targetSiteId}/appConfig/main`;
+    try {
+      await setDoc(
+        doc(firestore, 'publicSites', targetSiteId, 'appConfig', 'main'),
+        {
+          ...payload,
+          updatedAt: serverTimestamp(),
+        }
+      );
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, scopedPath);
+    }
+  }
+
+  // 3. Dedicated banners collection: publicSites/appConfig/banners/{bannerId}
+  const bannersColPath = 'publicSites/appConfig/banners';
+  try {
+    const bannersCol = collection(firestore, 'publicSites', 'appConfig', 'banners');
+    const existingSnap = await getDocs(bannersCol);
+    const keepIds = new Set(payload.banners.map((b) => b.id));
+    const batch = writeBatch(firestore);
+    existingSnap.docs.forEach((docSnap) => {
+      if (!keepIds.has(docSnap.id)) {
+        batch.delete(docSnap.ref);
+      }
+    });
+    payload.banners.forEach((banner) => {
+      batch.set(doc(firestore, 'publicSites', 'appConfig', 'banners', banner.id), {
+        ...banner,
+        ownerId: uid,
+        updatedAt: serverTimestamp(),
+      });
+    });
+    await batch.commit();
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, bannersColPath);
+  }
+
+  // 4. Dedicated FAQs collection: publicSites/appConfig/faqs/{faqId}
+  const faqsColPath = 'publicSites/appConfig/faqs';
+  try {
+    const faqsCol = collection(firestore, 'publicSites', 'appConfig', 'faqs');
+    const existingSnap = await getDocs(faqsCol);
+    const keepIds = new Set(payload.faqs.map((f) => f.id));
+    const batch = writeBatch(firestore);
+    existingSnap.docs.forEach((docSnap) => {
+      if (!keepIds.has(docSnap.id)) {
+        batch.delete(docSnap.ref);
+      }
+    });
+    payload.faqs.forEach((faq) => {
+      batch.set(doc(firestore, 'publicSites', 'appConfig', 'faqs', faq.id), {
+        ...faq,
+        ownerId: uid,
+        updatedAt: serverTimestamp(),
+      });
+    });
+    await batch.commit();
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, faqsColPath);
+  }
 }
 

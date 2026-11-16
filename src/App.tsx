@@ -22,20 +22,24 @@ import { auth, firebaseInitError, googleProvider } from './firebase';
 import {
   checkIsCloudAllowlistedAdmin,
   ensureUserProfile,
+  loadAppControlMainOnce,
   loadCloudDraft,
   loadCloudProxyProfile,
   loadPublicWebsiteStateOnce,
+  publishAppControlMainState,
   publishPublicWebsiteState,
   recordPublishLog,
   saveCloudDraft,
   saveCloudProxyProfile,
   saveCloudRepoSettings,
+  subscribeAppControlMain,
   subscribePublicWebsiteState,
   subscribeUserWorkspace,
 } from './services/firestoreSync';
 import { subscribeSocialMonitorData } from './services/socialFirestore';
 import type {
   AdminSection,
+  AppControlStudioConfig,
   AppLocalizationExtras,
   AppUserProfile,
   ChatRoomItem,
@@ -53,6 +57,12 @@ import {
   isAuthorizedAdminEmail,
   isLocalPreviewHost,
 } from './utils/adminAuth';
+import {
+  loadAppControlConfig,
+  normalizeAppControlConfig,
+  prepareAppConfigMainForFirestore,
+  saveAppControlConfig,
+} from './utils/appControlStudio';
 import {
   clearConfigTombstonesForApp,
   recordDeletedConfigItems,
@@ -162,6 +172,11 @@ const LocalizationStudioSection = lazy(() =>
     default: m.LocalizationStudioSection,
   }))
 );
+const AppControlStudioSection = lazy(() =>
+  import('./components/AppControlStudioSection').then((m) => ({
+    default: m.AppControlStudioSection,
+  }))
+);
 
 function getCurrentRoute(): AppRouteState {
   if (typeof window === 'undefined') {
@@ -241,6 +256,9 @@ export default function App() {
   const [appExtras, setAppExtras] = useState<AppLocalizationExtras>(() =>
     loadAppExtras(activeApp.id)
   );
+  const [appControl, setAppControl] = useState<AppControlStudioConfig>(() =>
+    loadAppControlConfig(activeApp.id)
+  );
   const [liveSyncing, setLiveSyncing] = useState(false);
   const [realtimeStatus, setRealtimeStatus] = useState<
     'live' | 'syncing' | 'local'
@@ -277,11 +295,14 @@ export default function App() {
   configRef.current = config;
   const appExtrasRef = useRef(appExtras);
   appExtrasRef.current = appExtras;
+  const appControlRef = useRef(appControl);
+  appControlRef.current = appControl;
   const websiteContentRef = useRef(websiteContent);
   websiteContentRef.current = websiteContent;
   const hydratedSiteIdRef = useRef(hydratedSiteId);
   hydratedSiteIdRef.current = hydratedSiteId;
   const lastSyncedSignatureRef = useRef<string>('');
+  const lastSyncedAppConfigSigRef = useRef<string>('');
 
   const canEnterLocalSandbox = useMemo(() => {
     if (typeof window === 'undefined') return false;
@@ -497,6 +518,61 @@ export default function App() {
     showBanner,
   ]);
 
+  // Fast 180ms debounced Firestore mirror for publicSites/appConfig/main/config + banners + faqs
+  useEffect(() => {
+    if (!user || !isAuthorizedAdmin || !activeSiteId) return;
+    if (hydratedSiteId !== activeSiteId) return;
+
+    const appConfigPayload = prepareAppConfigMainForFirestore(
+      user.uid,
+      config,
+      appExtras,
+      appControl
+    );
+    const appConfigSig = JSON.stringify(appConfigPayload);
+    if (appConfigSig === lastSyncedAppConfigSigRef.current) return;
+
+    setRealtimeStatus('syncing');
+    const timer = window.setTimeout(() => {
+      const startedAt =
+        typeof performance !== 'undefined' ? performance.now() : Date.now();
+      publishAppControlMainState(
+        user.uid,
+        config,
+        appExtras,
+        appControl,
+        activeSiteId
+      )
+        .then(() => {
+          lastSyncedAppConfigSigRef.current = appConfigSig;
+          const elapsed =
+            typeof performance !== 'undefined'
+              ? Math.round(performance.now() - startedAt)
+              : Math.round(Date.now() - startedAt);
+          setLastSyncLatencyMs(Math.max(12, elapsed));
+          setRealtimeStatus('live');
+        })
+        .catch((err) => {
+          setRealtimeStatus('local');
+          const msg =
+            err instanceof Error
+              ? err.message
+              : 'Live Firestore sync failed for publicSites/appConfig/main';
+          showBanner('error', msg);
+        });
+    }, 180);
+    return () => window.clearTimeout(timer);
+  }, [
+    user,
+    isAuthorizedAdmin,
+    activeSiteId,
+    hydratedSiteId,
+    config,
+    appExtras,
+    appControl,
+    showBanner,
+  ]);
+
   // Apply workspace density & Devanagari typography attributes
   useEffect(() => {
     if (typeof document === 'undefined') return;
@@ -633,18 +709,20 @@ export default function App() {
     };
   }, [showBanner]);
 
-  // Cloud-first authoritative hydration + real-time listener on active publicSites/{siteId}
+  // Cloud-first authoritative hydration + real-time listeners on active publicSites/{siteId} & publicSites/appConfig/main/config
   // Ensures deletions performed in Firestore or Admin Panel are never overwritten by stale local defaults.
   useEffect(() => {
     if (!user || !isAuthorizedAdmin || !activeSiteId) {
       setHydratedSiteId('');
       lastSyncedSignatureRef.current = '';
+      lastSyncedAppConfigSigRef.current = '';
       return;
     }
 
     let cancelled = false;
     setHydratedSiteId('');
     lastSyncedSignatureRef.current = '';
+    lastSyncedAppConfigSigRef.current = '';
 
     const applyRemoteSnapshot = (
       remoteSnap: Awaited<ReturnType<typeof loadPublicWebsiteStateOnce>>
@@ -676,16 +754,86 @@ export default function App() {
       setWebsiteContent(mergedWeb);
     };
 
-    let unsubSite: (() => void) | null = null;
+    const applyRemoteAppControl = (
+      remoteMain: Awaited<ReturnType<typeof loadAppControlMainOnce>>,
+      baseConfig: ShayariLokConfig,
+      baseExtras: AppLocalizationExtras
+    ) => {
+      if (!remoteMain) return;
+      const cleanControl = normalizeAppControlConfig(remoteMain.control);
+      const nextCfg: ShayariLokConfig = {
+        ...baseConfig,
+        ...(remoteMain.app_name !== undefined
+          ? { app_name: remoteMain.app_name }
+          : {}),
+        ...(remoteMain.ads_enabled !== undefined
+          ? { ads_enabled: remoteMain.ads_enabled }
+          : {}),
+        ...(remoteMain.banner_ad_id !== undefined
+          ? { banner_ad_id: remoteMain.banner_ad_id }
+          : {}),
+        ...(remoteMain.interstitial_ad_id !== undefined
+          ? { interstitial_ad_id: remoteMain.interstitial_ad_id }
+          : {}),
+        ...(remoteMain.privacy_policy_url !== undefined
+          ? { privacy_policy_url: remoteMain.privacy_policy_url }
+          : {}),
+      };
+      const nextExtras: AppLocalizationExtras = remoteMain.dynamic_theme
+        ? normalizeAppExtras({
+            ...baseExtras,
+            dynamic_theme: remoteMain.dynamic_theme,
+          })
+        : baseExtras;
+      lastSyncedAppConfigSigRef.current = JSON.stringify(
+        prepareAppConfigMainForFirestore(
+          user.uid,
+          nextCfg,
+          nextExtras,
+          cleanControl
+        )
+      );
+      saveAppControlConfig(activeApp.id, null, cleanControl);
+      setAppControl(cleanControl);
+      if (remoteMain.dynamic_theme) {
+        saveAppExtras(activeApp.id, nextExtras);
+        setAppExtras(nextExtras);
+      }
+      if (
+        remoteMain.app_name !== undefined ||
+        remoteMain.ads_enabled !== undefined ||
+        remoteMain.banner_ad_id !== undefined ||
+        remoteMain.interstitial_ad_id !== undefined ||
+        remoteMain.privacy_policy_url !== undefined
+      ) {
+        saveAppDraft(activeApp.id, nextCfg);
+        setConfig(nextCfg);
+      }
+    };
 
-    loadPublicWebsiteStateOnce(activeSiteId)
-      .then((remoteSnap) => {
+    let unsubSite: (() => void) | null = null;
+    let unsubAppMain: (() => void) | null = null;
+
+    Promise.all([
+      loadPublicWebsiteStateOnce(activeSiteId),
+      loadAppControlMainOnce(activeSiteId).catch(() => null),
+    ])
+      .then(([remoteSnap, remoteMain]) => {
         if (cancelled) return;
+        let currentCfg = configRef.current;
+        let currentExtras = appExtrasRef.current;
         if (remoteSnap) {
           applyRemoteSnapshot(remoteSnap);
+          currentCfg = remoteSnap.config;
+          currentExtras = remoteSnap.extras ?? currentExtras;
         } else if (!hasAppDraftStored(activeApp.id)) {
-          saveAppDraft(activeApp.id, configRef.current);
+          saveAppDraft(activeApp.id, currentCfg);
         }
+
+        if (remoteMain) {
+          applyRemoteAppControl(remoteMain, currentCfg, currentExtras);
+        }
+
         setHydratedSiteId(activeSiteId);
         setRealtimeStatus('live');
 
@@ -717,6 +865,33 @@ export default function App() {
             if (!cancelled) setRealtimeStatus('local');
           }
         );
+
+        unsubAppMain = subscribeAppControlMain(
+          (snap, meta) => {
+            if (cancelled) return;
+            setRealtimeStatus('live');
+            if (meta.hasPendingWrites) return;
+            const cleanControl = normalizeAppControlConfig(snap.control);
+            const incomingMainSig = JSON.stringify(
+              prepareAppConfigMainForFirestore(
+                user.uid,
+                configRef.current,
+                appExtrasRef.current,
+                cleanControl
+              )
+            );
+            if (incomingMainSig !== lastSyncedAppConfigSigRef.current) {
+              applyRemoteAppControl(
+                snap,
+                configRef.current,
+                appExtrasRef.current
+              );
+            }
+          },
+          () => {
+            if (!cancelled) setRealtimeStatus('local');
+          }
+        );
       })
       .catch(() => {
         if (cancelled) return;
@@ -727,6 +902,7 @@ export default function App() {
     return () => {
       cancelled = true;
       if (unsubSite) unsubSite();
+      if (unsubAppMain) unsubAppMain();
     };
   }, [user, isAuthorizedAdmin, activeSiteId, activeApp.id]);
 
@@ -821,21 +997,50 @@ export default function App() {
   const pushImmediateCloudSync = useCallback(
     async (
       nextConfig: ShayariLokConfig,
-      overrideExtras?: AppLocalizationExtras
+      overrideExtras?: AppLocalizationExtras,
+      overrideControl?: AppControlStudioConfig
     ) => {
       if (!user || !isAuthorizedAdmin || !activeSiteId) return;
       setRealtimeStatus('syncing');
       const startedAt =
         typeof performance !== 'undefined' ? performance.now() : Date.now();
+      const effectiveExtras = overrideExtras ?? appExtrasRef.current;
+      const effectiveControl = overrideControl ?? appControlRef.current;
       try {
-        await publishPublicWebsiteState(
-          user.uid,
-          nextConfig,
-          websiteContent,
-          enterprise.organizationName,
-          enterprise.supportEmail,
-          activeSiteId,
-          overrideExtras ?? appExtrasRef.current
+        await Promise.all([
+          publishPublicWebsiteState(
+            user.uid,
+            nextConfig,
+            websiteContent,
+            enterprise.organizationName,
+            enterprise.supportEmail,
+            activeSiteId,
+            effectiveExtras
+          ),
+          publishAppControlMainState(
+            user.uid,
+            nextConfig,
+            effectiveExtras,
+            effectiveControl,
+            activeSiteId
+          ),
+        ]);
+        lastSyncedSignatureRef.current = JSON.stringify(
+          preparePublicSiteForFirestore(
+            nextConfig,
+            websiteContent,
+            enterprise.organizationName,
+            enterprise.supportEmail,
+            effectiveExtras
+          )
+        );
+        lastSyncedAppConfigSigRef.current = JSON.stringify(
+          prepareAppConfigMainForFirestore(
+            user.uid,
+            nextConfig,
+            effectiveExtras,
+            effectiveControl
+          )
         );
         const elapsed =
           typeof performance !== 'undefined'
@@ -897,6 +1102,25 @@ export default function App() {
     [activeApp.id, pushImmediateCloudSync]
   );
 
+  const handleUpdateAppControl = useCallback(
+    (next: AppControlStudioConfig, instantSync?: boolean) => {
+      const saved = saveAppControlConfig(
+        activeApp.id,
+        appControlRef.current,
+        next
+      );
+      setAppControl(saved);
+      if (instantSync) {
+        void pushImmediateCloudSync(
+          configRef.current,
+          appExtrasRef.current,
+          saved
+        );
+      }
+    },
+    [activeApp.id, pushImmediateCloudSync]
+  );
+
   const handleSelectApp = useCallback(
     (nextAppId: string) => {
       if (nextAppId === activeAppId) return;
@@ -905,6 +1129,11 @@ export default function App() {
 
       saveAppDraft(activeAppId, configRef.current);
       saveAppExtras(activeAppId, appExtrasRef.current);
+      saveAppControlConfig(
+        activeAppId,
+        appControlRef.current,
+        appControlRef.current
+      );
       setActiveAppId(nextAppId);
       saveActiveAppId(nextAppId);
 
@@ -912,6 +1141,7 @@ export default function App() {
       setConfig(nextDraft);
       setBaselineConfig(nextDraft);
       setAppExtras(loadAppExtras(target.id));
+      setAppControl(loadAppControlConfig(target.id));
       setSettings((prev) => {
         const updated: GitHubSettings = {
           ...prev,
@@ -930,6 +1160,11 @@ export default function App() {
     (input: { name: string; packageId: string; githubPath: string }) => {
       saveAppDraft(activeAppId, configRef.current);
       saveAppExtras(activeAppId, appExtrasRef.current);
+      saveAppControlConfig(
+        activeAppId,
+        appControlRef.current,
+        appControlRef.current
+      );
       const created = createManagedAppProfile(input, managedApps);
       const nextApps = [...managedApps, created];
       setManagedApps(nextApps);
@@ -944,6 +1179,9 @@ export default function App() {
       const initialExtras = loadAppExtras(created.id);
       saveAppExtras(created.id, initialExtras);
       setAppExtras(initialExtras);
+      const initialControl = loadAppControlConfig(created.id);
+      saveAppControlConfig(created.id, null, initialControl);
+      setAppControl(initialControl);
       setSettings((prev) => {
         const updated: GitHubSettings = {
           ...prev,
@@ -976,6 +1214,7 @@ export default function App() {
         setConfig(fallbackDraft);
         setBaselineConfig(fallbackDraft);
         setAppExtras(loadAppExtras(fallback.id));
+        setAppControl(loadAppControlConfig(fallback.id));
         setSettings((prev) => {
           const updated: GitHubSettings = {
             ...prev,
@@ -1331,10 +1570,17 @@ export default function App() {
   };
 
   const handleSyncLiveWebsiteNow = useCallback(async () => {
+    saveAppDraft(activeApp.id, configRef.current);
+    saveAppExtras(activeApp.id, appExtrasRef.current);
+    saveAppControlConfig(
+      activeApp.id,
+      appControlRef.current,
+      appControlRef.current
+    );
     if (!user || !isAuthorizedAdmin || !activeSiteId) {
       showBanner(
         'info',
-        'लाइव Firestore क्लाउड सिंक के लिए वेरीफाइड Google एडमिन से साइन-इन आवश्यक है (अभी लोकल सैंडबॉक्स सक्रिय है)।'
+        'बदलाव लोकल ड्राफ्ट में सेव हो गए हैं। लाइव Firestore क्लाउड सिंक (publicSites/appConfig/main) के लिए Google Admin से साइन-इन करें।'
       );
       return;
     }
@@ -1343,14 +1589,40 @@ export default function App() {
     const startedAt =
       typeof performance !== 'undefined' ? performance.now() : Date.now();
     try {
-      await publishPublicWebsiteState(
-        user.uid,
-        configRef.current,
-        websiteContent,
-        enterprise.organizationName,
-        enterprise.supportEmail,
-        activeSiteId,
-        appExtrasRef.current
+      await Promise.all([
+        publishPublicWebsiteState(
+          user.uid,
+          configRef.current,
+          websiteContent,
+          enterprise.organizationName,
+          enterprise.supportEmail,
+          activeSiteId,
+          appExtrasRef.current
+        ),
+        publishAppControlMainState(
+          user.uid,
+          configRef.current,
+          appExtrasRef.current,
+          appControlRef.current,
+          activeSiteId
+        ),
+      ]);
+      lastSyncedSignatureRef.current = JSON.stringify(
+        preparePublicSiteForFirestore(
+          configRef.current,
+          websiteContent,
+          enterprise.organizationName,
+          enterprise.supportEmail,
+          appExtrasRef.current
+        )
+      );
+      lastSyncedAppConfigSigRef.current = JSON.stringify(
+        prepareAppConfigMainForFirestore(
+          user.uid,
+          configRef.current,
+          appExtrasRef.current,
+          appControlRef.current
+        )
       );
       const elapsed =
         typeof performance !== 'undefined'
@@ -1358,8 +1630,14 @@ export default function App() {
           : Math.round(Date.now() - startedAt);
       setLastSyncLatencyMs(Math.max(12, elapsed));
       setRealtimeStatus('live');
-      showBanner('success', `लाइव वेबसाइट और ऐप (${activeSiteId}) Firestore पर अपडेट हो गए (${Math.max(12, elapsed)}ms)।`);
-      logActivity('Live Website Synced', `Updated publicSites/${activeSiteId}`);
+      showBanner(
+        'success',
+        `लाइव ऐप कंट्रोल, बैनर, AdMob, प्राइवेसी और FAQ (${activeSiteId} & appConfig/main) Firestore पर अपडेट हो गए (${Math.max(12, elapsed)}ms)।`
+      );
+      logActivity(
+        'Live App & Site Synced',
+        `Updated publicSites/${activeSiteId} & publicSites/appConfig/main/config`
+      );
     } catch (error) {
       setRealtimeStatus('local');
       const msg =
@@ -1369,6 +1647,7 @@ export default function App() {
       setLiveSyncing(false);
     }
   }, [
+    activeApp.id,
     user,
     isAuthorizedAdmin,
     activeSiteId,
@@ -1664,6 +1943,7 @@ export default function App() {
               config={config}
               activeApp={activeApp}
               extras={appExtras}
+              control={appControl}
               appUsers={effectiveAppUsers}
               socialEdges={effectiveSocialEdges}
               chatRooms={effectiveChatRooms}
@@ -1675,6 +1955,33 @@ export default function App() {
               onSyncLiveNow={handleSyncLiveWebsiteNow}
               onTriggerForceUpdate={handleTriggerForceUpdate}
             />
+          )}
+
+          {activeSection === 'app-studio' && (
+            <Suspense
+              fallback={
+                <div className="bg-white border border-slate-200 rounded-xl p-8 text-center text-xs text-slate-500">
+                  Loading App Control &amp; CMS Studio...
+                </div>
+              }
+            >
+              <AppControlStudioSection
+                config={config}
+                extras={appExtras}
+                control={appControl}
+                user={user}
+                realtimeStatus={realtimeStatus}
+                lastSyncLatencyMs={lastSyncLatencyMs}
+                githubSettings={settings}
+                proxySettings={proxySettings}
+                hostedPrivacyUrl={standalonePrivacyUrl}
+                onUpdateConfig={handleUpdateConfig}
+                onUpdateExtras={handleUpdateExtras}
+                onUpdateControl={handleUpdateAppControl}
+                onSaveAppConfigNow={handleSyncLiveWebsiteNow}
+                onAttemptLog={appendAttemptLog}
+              />
+            </Suspense>
           )}
 
           {activeSection === 'shayari' && (
@@ -1741,7 +2048,10 @@ export default function App() {
           {activeSection === 'monetization' && (
             <MonetizationSection
               config={config}
+              control={appControl}
               onUpdate={handleUpdateConfig}
+              onUpdateControl={handleUpdateAppControl}
+              onSaveAndSync={handleSyncLiveWebsiteNow}
               hostedPrivacyUrl={standalonePrivacyUrl}
               hostedWebsiteUrl={standaloneWebsiteUrl}
             />

@@ -10,6 +10,7 @@ import {
   MessagesSquare,
   RefreshCw,
   Settings,
+  SlidersHorizontal,
   Smartphone,
   Waypoints,
   X,
@@ -47,6 +48,7 @@ const NAV_ITEMS: Array<{
   icon: React.ComponentType<{ className?: string }>;
 }> = [
   { id: 'dashboard', label: 'Dashboard & Control', icon: LayoutDashboard },
+  { id: 'app-studio', label: 'App Control & CMS', icon: SlidersHorizontal },
   { id: 'shayari', label: 'Shayari Manager', icon: BookOpenText },
   { id: 'notifications', label: 'Notifications & Alerts', icon: Bell },
   { id: 'localization', label: 'Languages & Themes', icon: Languages },

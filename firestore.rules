@@ -394,17 +394,29 @@ service cloud.firestore {
         allow get, list: if isValidId(siteId)
           && isValidId(subCollection)
           && isValidId(docId)
-          && (isVerifiedAdminEmail() || (isAdmin() && isOwnerSiteId(siteId)));
+          && (
+            subCollection in ['appConfig', 'banners', 'faqs', 'legal', 'main']
+            || isVerifiedAdminEmail()
+            || (isAdmin() && isOwnerSiteId(siteId))
+          );
         allow create, update, delete: if isValidId(siteId)
           && isValidId(subCollection)
           && isValidId(docId)
-          && isVerifiedAdminEmail();
+          && (isVerifiedAdminEmail() || (isAdmin() && isOwnerSiteId(siteId)));
 
         match /{nestedPath=**} {
-          allow read, write: if isValidId(siteId)
+          allow get, list: if isValidId(siteId)
             && isValidId(subCollection)
             && isValidId(docId)
-            && isVerifiedAdminEmail();
+            && (
+              subCollection in ['appConfig', 'banners', 'faqs', 'legal', 'main']
+              || isVerifiedAdminEmail()
+              || isAdmin()
+            );
+          allow write: if isValidId(siteId)
+            && isValidId(subCollection)
+            && isValidId(docId)
+            && isAdmin();
         }
       }
     }

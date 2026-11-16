@@ -7,9 +7,11 @@ import {
   Radio,
   Rocket,
   ShieldCheck,
+  SlidersHorizontal,
   Smartphone,
 } from 'lucide-react';
 import type {
+  AppControlStudioConfig,
   AppLocalizationExtras,
   AppUserProfile,
   ChatRoomItem,
@@ -24,6 +26,7 @@ interface DashboardSectionProps {
   config: ShayariLokConfig;
   activeApp: ManagedAppProfile;
   extras?: AppLocalizationExtras;
+  control?: AppControlStudioConfig;
   appUsers: AppUserProfile[];
   socialEdges: SocialEdgeItem[];
   chatRooms: ChatRoomItem[];
@@ -33,6 +36,7 @@ interface DashboardSectionProps {
   onUpdate: (patch: Partial<ShayariLokConfig>, instantSync?: boolean) => void;
   onNavigate: (
     section:
+      | 'app-studio'
       | 'shayari'
       | 'notifications'
       | 'localization'
@@ -48,6 +52,7 @@ export const DashboardSection: React.FC<DashboardSectionProps> = ({
   config,
   activeApp,
   extras,
+  control,
   appUsers,
   socialEdges,
   chatRooms,
@@ -69,6 +74,13 @@ export const DashboardSection: React.FC<DashboardSectionProps> = ({
   const themeLabel = extras
     ? THEME_PRESETS[extras.dynamic_theme.presetId].label
     : 'Indigo Editorial';
+  const activeBannerCount = control
+    ? control.banners.filter((b) => b.active).length
+    : 0;
+  const activeFaqCount = control
+    ? control.faqs.filter((f) => f.active).length
+    : 0;
+  const defaultThemeMode = extras?.dynamic_theme.darkModeEnabled ? 'Dark' : 'Light';
 
   return (
     <div className="space-y-6">
@@ -186,29 +198,54 @@ export const DashboardSection: React.FC<DashboardSectionProps> = ({
         </button>
       </div>
 
-      {/* Multi-Language, Countries & Dynamic Theme Quick Strip */}
-      <section className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-start gap-3 min-w-0">
-          <Languages className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />
-          <div className="min-w-0">
-            <div className="text-sm font-bold text-slate-900">
-              Global Languages, Countries &amp; AI Theme
+      {/* Dynamic App Control CMS & Multi-Language Quick Strip */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <section className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-start gap-3 min-w-0">
+            <SlidersHorizontal className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />
+            <div className="min-w-0">
+              <div className="text-sm font-bold text-slate-900">
+                Banners, Branding, Privacy &amp; FAQs
+              </div>
+              <p className="text-xs text-slate-500 truncate sm:whitespace-normal">
+                {activeBannerCount} Active Banners · {activeFaqCount} FAQs · Default Mode:{' '}
+                <span className="font-semibold text-slate-700">{defaultThemeMode}</span>
+              </p>
             </div>
-            <p className="text-xs text-slate-500 truncate sm:whitespace-normal">
-              {enabledLangCount} Languages · {enabledCountryCount} Countries · Active Theme:{' '}
-              <span className="font-semibold text-slate-700">{themeLabel}</span>
-            </p>
           </div>
-        </div>
-        <button
-          type="button"
-          onClick={() => onNavigate('localization')}
-          className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 whitespace-nowrap self-start sm:self-auto"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          <span>Manage Languages, Countries &amp; Themes</span>
-        </button>
-      </section>
+          <button
+            type="button"
+            onClick={() => onNavigate('app-studio')}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 whitespace-nowrap self-start sm:self-auto"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Open App Control Studio</span>
+          </button>
+        </section>
+
+        <section className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-start gap-3 min-w-0">
+            <Languages className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />
+            <div className="min-w-0">
+              <div className="text-sm font-bold text-slate-900">
+                Global Languages, Countries &amp; AI Theme
+              </div>
+              <p className="text-xs text-slate-500 truncate sm:whitespace-normal">
+                {enabledLangCount} Languages · {enabledCountryCount} Countries · Theme:{' '}
+                <span className="font-semibold text-slate-700">{themeLabel}</span>
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => onNavigate('localization')}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 whitespace-nowrap self-start sm:self-auto"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Manage Languages &amp; Themes</span>
+          </button>
+        </section>
+      </div>
 
       {/* App Identity & Remote Version Control */}
       <section className="bg-white border border-slate-200 rounded-xl p-6 space-y-6">
