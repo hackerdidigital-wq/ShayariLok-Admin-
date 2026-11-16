@@ -1,6 +1,6 @@
 {
   "app_name": "Shayari Lok",
-  "latest_version_code": 1,
+  "latest_version_code": 2,
   "force_update_url": "https://play.google.com/store/apps/details?id=com.cyberking.shayarilok",
   "maintenance_mode": false,
   "maintenance_message": "हम ऐप को और बेहतर बना रहे हैं। कृपया कुछ समय बाद पुनः प्रयास करें।",
@@ -19,13 +19,6 @@
     "Love"
   ],
   "shayari_list": [
-    {
-      "id": 6,
-      "category": "General",
-      "text": "***ख़ास शब्द*✨ > दिल की बात ✨*> दिल की बात***",
-      "author": "T",
-      "image_url": ""
-    },
     {
       "id": 5,
       "category": "General",
