@@ -11,15 +11,7 @@
   "interstitial_ad_id": "ca-app-pub-3940256099942544/1033173712",
   "announcement_title": "नई हिंदी शायरी संग्रह लाइव है",
   "announcement_message": "आज ही Love और Motivation कैटेगरी में नई चुनिंदा शायरियाँ पढ़ें और दोस्तों के साथ शेयर करें।",
-  "notifications": [
-    {
-      "id": 1,
-      "title": "Welcome",
-      "message": "I love you 😗💝",
-      "badge": "Shayari Alert",
-      "time_label": "Today"
-    }
-  ],
+  "notifications": [],
   "categories": [
     "All",
     "General",
