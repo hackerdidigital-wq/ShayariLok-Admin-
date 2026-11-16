@@ -5,12 +5,18 @@ import {
   DEMO_CHAT_ROOMS,
   DEMO_SOCIAL_EDGES,
   buildAndroidSocialFirestoreEndpoints,
+  buildSocialCleanupPlan,
   computeSocialOverview,
   filterAppUsers,
   filterChatRooms,
+  formatFirestoreTimestamp,
   generateAndroidSocialIntegrationCode,
   getUserRelationships,
+  isDummyAppUser,
+  isDummyChatRoom,
+  isDummySocialEdge,
 } from './socialMonitor';
+import type { AppUserProfile, ChatRoomItem, SocialEdgeItem } from '../types/config';
 
 test('computeSocialOverview aggregates online, blocked, follows, likes, and flagged rooms', () => {
   const stats = computeSocialOverview(
@@ -60,7 +66,83 @@ test('getUserRelationships resolves exact followers, following, likedBy, and lik
   assert.equal(rel.likedTargets.length, 2);
 });
 
-test('Android Firestore endpoint & code generator embeds exact databaseId and collection paths', () => {
+test('dummy detection and buildSocialCleanupPlan isolate test data from real production users', () => {
+  const realUser: AppUserProfile = {
+    uid: 'real_uid_987',
+    displayName: 'Kavita Joshi',
+    username: 'kavita_poems',
+    city: 'Pune',
+    address: 'Kothrud',
+    bio: 'Writing Hindi poetry',
+    isOnline: true,
+    isBlocked: false,
+    blockReason: '',
+    followersCount: 12,
+    followingCount: 4,
+    likesReceivedCount: 25,
+    createdAt: '2026-11-15T10:00:00Z',
+    updatedAt: '2026-11-15T10:00:00Z',
+  };
+  const toxicRealUser: AppUserProfile = {
+    ...realUser,
+    uid: 'real_uid_999',
+    displayName: 'Toxic Account',
+    username: 'toxic_999',
+    isBlocked: true,
+    blockReason: 'Abuse',
+  };
+  const realEdge: SocialEdgeItem = {
+    id: 'edge_real_1',
+    actorId: 'real_uid_987',
+    targetId: 'real_uid_999',
+    actorName: 'Kavita',
+    targetName: 'Toxic',
+    type: 'follow',
+    createdAt: '2026-11-15T10:00:00Z',
+  };
+  const realRoom: ChatRoomItem = {
+    id: 'room_real_only',
+    participantIds: ['real_uid_987', 'real_uid_888'],
+    participantNames: ['Kavita', 'Friend'],
+    lastMessage: 'Hello',
+    lastSenderId: 'real_uid_987',
+    messageCount: 1,
+    flaggedSpam: false,
+    updatedAt: '2026-11-15T10:00:00Z',
+  };
+
+  assert.equal(isDummyAppUser(realUser), false);
+  assert.equal(isDummyAppUser(DEMO_APP_USERS[0]), true);
+  assert.equal(isDummySocialEdge(realEdge), false);
+  assert.equal(isDummySocialEdge(DEMO_SOCIAL_EDGES[0]), true);
+  assert.equal(isDummyChatRoom(realRoom), false);
+  assert.equal(isDummyChatRoom(DEMO_CHAT_ROOMS[0]), true);
+
+  const users = [...DEMO_APP_USERS, realUser, toxicRealUser];
+  const edges = [...DEMO_SOCIAL_EDGES, realEdge];
+  const rooms = [...DEMO_CHAT_ROOMS, realRoom];
+
+  const dummyOnly = buildSocialCleanupPlan(users, edges, rooms, {
+    includeBlockedOrFlagged: false,
+  });
+  assert.equal(dummyOnly.dummyUserCount, 4);
+  assert.equal(dummyOnly.dummyEdgeCount, 8);
+  assert.equal(dummyOnly.dummyRoomCount, 2);
+  assert.equal(dummyOnly.userIds.includes('real_uid_987'), false);
+  assert.equal(dummyOnly.userIds.includes('real_uid_999'), false);
+  assert.equal(dummyOnly.edgeIds.includes('edge_real_1'), false);
+  assert.equal(dummyOnly.roomIds.includes('room_real_only'), false);
+
+  const withSpam = buildSocialCleanupPlan(users, edges, rooms, {
+    includeBlockedOrFlagged: true,
+  });
+  assert.equal(withSpam.flaggedSpamUserCount, 1);
+  assert.equal(withSpam.userIds.includes('real_uid_999'), true);
+  assert.equal(withSpam.edgeIds.includes('edge_real_1'), true);
+  assert.equal(withSpam.userIds.includes('real_uid_987'), false);
+});
+
+test('Android Firestore endpoint & code generator embeds exact databaseId, safe updates, and instant removal listener', () => {
   const endpoints = buildAndroidSocialFirestoreEndpoints({
     projectId: 'psychic-advantage-nsmzh',
     firestoreDatabaseId: 'ai-studio-f7f3be7b-496c-4d08-bf57-38a268f047a4',
@@ -83,5 +165,33 @@ test('Android Firestore endpoint & code generator embeds exact databaseId and co
   assert.match(kotlin, /collection\("appUsers"\)/);
   assert.match(kotlin, /collection\("socialEdges"\)/);
   assert.match(kotlin, /collection\("chatRooms"\)/);
-  assert.match(kotlin, /observeMyBlockStatus/);
+  assert.match(kotlin, /observeMyProfileAndBlockStatus/);
+  assert.match(kotlin, /roomRef\.update/);
+  assert.match(kotlin, /userRef\.update/);
+});
+
+test('formatFirestoreTimestamp preserves receiver context for Firestore Timestamp.toDate()', () => {
+  class MockFirestoreTimestamp {
+    private ms: number;
+    constructor(ms: number) {
+      this.ms = ms;
+    }
+    toMillis() {
+      return this.ms;
+    }
+    toDate() {
+      return new Date(this.toMillis());
+    }
+  }
+
+  const ts = new MockFirestoreTimestamp(1700000000000);
+  assert.equal(formatFirestoreTimestamp(ts), '2023-11-14T22:13:20.000Z');
+  assert.equal(
+    formatFirestoreTimestamp({ seconds: 1700000000 }),
+    '2023-11-14T22:13:20.000Z'
+  );
+  assert.equal(
+    formatFirestoreTimestamp('2026-11-16T10:00:00Z'),
+    '2026-11-16T10:00:00Z'
+  );
 });

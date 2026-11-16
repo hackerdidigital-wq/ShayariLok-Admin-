@@ -80,18 +80,44 @@ export function handleFirestoreError(
   throw new Error(JSON.stringify(errInfo));
 }
 
-async function testConnection() {
-  if (!db) return;
+export async function testFirestoreConnection(): Promise<{
+  ok: boolean;
+  latencyMs: number;
+  error?: string;
+}> {
+  if (!db) {
+    return {
+      ok: false,
+      latencyMs: 0,
+      error: firebaseInitError || 'Firestore client is not initialized.',
+    };
+  }
+  const started =
+    typeof performance !== 'undefined' ? performance.now() : Date.now();
   try {
-    await getDocFromServer(doc(db, 'test', 'connection'));
+    await getDocFromServer(doc(db, 'publicSites', 'healthcheck'));
+    const latencyMs = Math.max(
+      1,
+      Math.round(
+        (typeof performance !== 'undefined' ? performance.now() : Date.now()) -
+          started
+      )
+    );
+    return { ok: true, latencyMs };
   } catch (error) {
-    if (
-      error instanceof Error &&
-      error.message.includes('the client is offline')
-    ) {
+    const latencyMs = Math.max(
+      1,
+      Math.round(
+        (typeof performance !== 'undefined' ? performance.now() : Date.now()) -
+          started
+      )
+    );
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes('the client is offline')) {
       console.error('Please check your Firebase configuration.');
     }
+    return { ok: false, latencyMs, error: message };
   }
 }
 
-void testConnection();
+void testFirestoreConnection();

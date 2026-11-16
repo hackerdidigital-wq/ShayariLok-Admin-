@@ -464,44 +464,46 @@ public class ShayariConfigManager {
 }
 
 export function generateRemoteControlGateCode(): string {
-  return `// MainActivity.kt — Enforce Maintenance Mode, Force Update & AdMob Control on Launch
-private fun applyAdminRemoteControl(config: ShayariConfig) {
-    // 1. Maintenance Mode Lock (Highest Priority)
-    if (config.maintenanceMode) {
-        AlertDialog.Builder(this)
-            .setTitle("\${config.appName} — Maintenance")
-            .setMessage(config.maintenanceMessage)
-            .setCancelable(false)
-            .setPositiveButton("Close App") { _, _ -> finishAffinity() }
-            .show()
-        return
-    }
+  return `// RemoteGateController.kt — Enforce Maintenance Mode, Force Update & AdMob Control on Launch
+object RemoteGateController {
+    fun applyAdminRemoteControl(activity: AppCompatActivity, config: ShayariConfig) {
+        // 1. Maintenance Mode Lock (Highest Priority)
+        if (config.maintenanceMode) {
+            AlertDialog.Builder(activity)
+                .setTitle("\${config.appName} — Maintenance")
+                .setMessage(config.maintenanceMessage)
+                .setCancelable(false)
+                .setPositiveButton("Close App") { _, _ -> activity.finishAffinity() }
+                .show()
+            return
+        }
 
-    // 2. Force Update Gate (Compare with BuildConfig.VERSION_CODE)
-    if (config.latestVersionCode > BuildConfig.VERSION_CODE) {
-        AlertDialog.Builder(this)
-            .setTitle("New Update Available (v\${config.latestVersionCode})")
-            .setMessage("कृपया नए फ़ीचर्स और ताज़ा शायरियों के लिए ऐप अपडेट करें।")
-            .setCancelable(false)
-            .setPositiveButton("Update Now") { _, _ ->
-                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(config.forceUpdateUrl)))
-            }
-            .show()
-        return
-    }
+        // 2. Force Update Gate (Compare with BuildConfig.VERSION_CODE)
+        if (config.latestVersionCode > BuildConfig.VERSION_CODE) {
+            AlertDialog.Builder(activity)
+                .setTitle("New Update Available (v\${config.latestVersionCode})")
+                .setMessage("कृपया नए फ़ीचर्स और ताज़ा शायरियों के लिए ऐप अपडेट करें।")
+                .setCancelable(false)
+                .setPositiveButton("Update Now") { _, _ ->
+                    activity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(config.forceUpdateUrl)))
+                }
+                .show()
+            return
+        }
 
-    // 3. Apply Dynamic AdMob & Privacy Policy URL
-    if (config.adsEnabled && config.bannerAdId.isNotBlank()) {
-        loadAdMobBanner(config.bannerAdId)
-    } else {
-        hideBannerContainer()
-    }
-    savePrivacyPolicyUrl(config.privacyPolicyUrl)
+        // 3. Apply Dynamic AdMob & Privacy Policy URL
+        if (config.adsEnabled && config.bannerAdId.isNotBlank()) {
+            loadAdMobBanner(config.bannerAdId)
+        } else {
+            hideBannerContainer()
+        }
+        savePrivacyPolicyUrl(config.privacyPolicyUrl)
 
-    // 4. Bind Live Categories, Bell Notifications & Shayari List to RecyclerView
-    bindCategories(config.categories)
-    bindBellNotifications(config.notifications)
-    bindShayariFeed(config.shayariList)
+        // 4. Bind Live Categories, Bell Notifications & Shayari List to RecyclerView
+        bindCategories(config.categories)
+        bindBellNotifications(config.notifications)
+        bindShayariFeed(config.shayariList)
+    }
 }`;
 }
 
@@ -529,32 +531,44 @@ export function generateFirestoreRealtimeListenerCode(
   siteId?: string | null
 ): string {
   const effectiveSiteId = siteId?.trim() || 'YOUR_ADMIN_UID';
-  return `// FirestoreRealtimeRepository.kt — 100-300ms Real-Time Live Sync (No Refresh Needed)
+  return `// FirestoreRealtimeRepository.kt — Instant Real-Time Live Sync (Zero Delay)
 package com.cyberking.shayarilok.data.remote
 
+import com.google.firebase.FirebaseApp
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
+import com.google.firebase.firestore.MetadataChanges
 
 class FirestoreRealtimeRepository(
-    private val db: FirebaseFirestore = FirebaseFirestore.getInstance("${firebaseAppletConfig.firestoreDatabaseId}")
+    private val db: FirebaseFirestore = FirebaseFirestore.getInstance(
+        FirebaseApp.getInstance(),
+        "${firebaseAppletConfig.firestoreDatabaseId}"
+    )
 ) {
     private var registration: ListenerRegistration? = null
 
     fun startLiveSync(
         onConfigUpdated: (Map<String, Any>) -> Unit,
+        onBroadcastNotice: ((title: String, message: String) -> Unit)? = null,
         onError: (Exception) -> Unit
     ) {
         registration?.remove()
         registration = db.collection("publicSites")
             .document("${effectiveSiteId}")
-            .addSnapshotListener { snapshot, error ->
+            .addSnapshotListener(MetadataChanges.INCLUDE) { snapshot, error ->
                 if (error != null) {
                     onError(error)
                     return@addSnapshotListener
                 }
                 val data = snapshot?.data ?: return@addSnapshotListener
-                // Delivers maintenance_mode, latest_version_code, categories, notifications & shayari_list in ~100-300ms
+                // Delivers maintenance_mode, latest_version_code, categories, notifications, announcements, shayari_list, languages & theme instantaneously
                 onConfigUpdated(data)
+
+                val noticeTitle = data["announcement_title"]?.toString()?.trim().orEmpty()
+                val noticeMsg = data["announcement_message"]?.toString()?.trim().orEmpty()
+                if (onBroadcastNotice != null && (noticeTitle.isNotEmpty() || noticeMsg.isNotEmpty())) {
+                    onBroadcastNotice(noticeTitle, noticeMsg)
+                }
             }
     }
 
@@ -654,11 +668,21 @@ class LocaleSettingsManager(
                 }
 
                 val dynamicTheme = data["dynamic_theme"] as? Map<*, *>
-                val primaryHex = dynamicTheme?.get("primaryColor")?.toString() ?: "#4f46e5"
-                val accentHex = dynamicTheme?.get("accentColor")?.toString() ?: "#e11d48"
+                val presetId = dynamicTheme?.get("presetId")?.toString() ?: "indigo_editorial"
+                val (fallbackPrimary, fallbackAccent) = resolvePresetPalette(presetId)
+                val primaryHex = dynamicTheme?.get("primaryColor")?.toString() ?: fallbackPrimary
+                val accentHex = dynamicTheme?.get("accentColor")?.toString() ?: fallbackAccent
 
                 onUpdate(languages, countries, primaryHex, accentHex)
             }
+    }
+
+    fun resolvePresetPalette(presetId: String): Pair<String, String> = when (presetId) {
+        "royal_midnight" -> "#6366f1" to "#f59e0b"
+        "emerald_sufi" -> "#059669" to "#0d9488"
+        "rose_shayari" -> "#be123c" to "#fb7185"
+        "indigo_editorial" -> "#4f46e5" to "#e11d48"
+        else -> "#4f46e5" to "#e11d48"
     }
 
     /**
@@ -683,6 +707,108 @@ class LocaleSettingsManager(
     fun stop() {
         registration?.remove()
         registration = null
+    }
+}`;
+}
+
+export function generateCompleteAndroidAppPack(
+  primaryUrl: string,
+  fallbackUrl: string,
+  siteId?: string | null
+): string {
+  const effectiveSiteId = siteId?.trim() || 'YOUR_ADMIN_UID';
+  return `// ============================================================================
+// ShayariLok_Complete_Kotlin_Pack.kt — Ready-to-Use Android Studio Integration
+// Target Site / Document ID: publicSites/${effectiveSiteId}
+// Firestore Database ID: ${firebaseAppletConfig.firestoreDatabaseId}
+// Primary JSON Endpoint: ${primaryUrl}
+// Fallback JSON Endpoint: ${fallbackUrl}
+// ============================================================================
+
+${generateKotlinModelsAndRepo(primaryUrl, fallbackUrl)}
+
+${generateFirestoreRealtimeListenerCode(effectiveSiteId)}
+
+${generateAndroidLocaleSyncCode(effectiveSiteId)}
+
+object RemoteGateController {
+    fun applyAdminRemoteControl(activity: AppCompatActivity, config: ShayariConfig) {
+        if (config.maintenanceMode) {
+            AlertDialog.Builder(activity)
+                .setTitle("\${config.appName} — Maintenance")
+                .setMessage(config.maintenanceMessage)
+                .setCancelable(false)
+                .setPositiveButton("Close") { _, _ -> activity.finishAffinity() }
+                .show()
+            return
+        }
+        if (config.latestVersionCode > BuildConfig.VERSION_CODE) {
+            AlertDialog.Builder(activity)
+                .setTitle("Update Required (v\${config.latestVersionCode})")
+                .setMessage("कृपया नया वर्ज़न अपडेट करें।")
+                .setCancelable(false)
+                .setPositiveButton("Update Now") { _, _ ->
+                    activity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(config.forceUpdateUrl)))
+                }
+                .show()
+        }
+    }
+}
+
+class MainActivity : AppCompatActivity() {
+    private val firestoreSync by lazy { FirestoreRealtimeRepository() }
+    private val localeManager by lazy { LocaleSettingsManager(this) }
+    private var liveLanguages: List<RemoteLanguage> = emptyList()
+    private var liveCountries: List<RemoteCountry> = emptyList()
+
+    override fun onStart() {
+        super.onStart()
+        firestoreSync.startLiveSync(
+            onConfigUpdated = { data ->
+                val cfg = ShayariConfig(
+                    appName = data["app_name"]?.toString() ?: "Shayari Lok",
+                    latestVersionCode = (data["latest_version_code"] as? Number)?.toInt() ?: 1,
+                    forceUpdateUrl = data["force_update_url"]?.toString() ?: "",
+                    maintenanceMode = data["maintenance_mode"] as? Boolean ?: false,
+                    maintenanceMessage = data["maintenance_message"]?.toString() ?: "",
+                    privacyPolicyUrl = data["privacy_policy_url"]?.toString() ?: "",
+                    socialLink = data["social_link"]?.toString() ?: "",
+                    adsEnabled = data["ads_enabled"] as? Boolean ?: true,
+                    bannerAdId = "",
+                    interstitialAdId = "",
+                    announcementTitle = data["announcement_title"]?.toString() ?: "",
+                    announcementMessage = data["announcement_message"]?.toString() ?: ""
+                )
+                RemoteGateController.applyAdminRemoteControl(this, cfg)
+            },
+            onError = { /* Fallback to cached JSON */ }
+        )
+
+        localeManager.observeLiveLanguagesAndTheme { langs, countries, _, _ ->
+            liveLanguages = langs
+            liveCountries = countries
+        }
+    }
+
+    fun showLanguageAndCountryPickerDialog() {
+        val labels = liveLanguages.map { "\${it.flag} \${it.nativeName} (\${it.name})" }.toTypedArray()
+        if (labels.isEmpty()) return
+        AlertDialog.Builder(this)
+            .setTitle("Select Language & Region (\${liveCountries.size})")
+            .setItems(labels) { _, idx ->
+                val chosen = liveLanguages[idx]
+                localeManager.selectUserLanguage(chosen, window.decorView)
+                AppCompatDelegate.setApplicationLocales(
+                    LocaleListCompat.forLanguageTags(chosen.code)
+                )
+            }
+            .show()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        firestoreSync.stopLiveSync()
+        localeManager.stop()
     }
 }`;
 }

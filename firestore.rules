@@ -32,7 +32,9 @@ service cloud.firestore {
     }
 
     function isVerifiedAdminEmail() {
-      return isVerified() && request.auth.token.email == 'bamniyad749@gmail.com';
+      return isVerified()
+        && request.auth.token.email is string
+        && request.auth.token.email.lower() == 'bamniyad749@gmail.com';
     }
 
     function isOwnerSiteId(siteId) {

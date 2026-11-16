@@ -22,6 +22,43 @@ export interface UserRelationshipSummary {
   likedTargets: SocialEdgeItem[];
 }
 
+export function formatFirestoreTimestamp(val: unknown): string {
+  if (val instanceof Date) {
+    return Number.isNaN(val.getTime()) ? new Date().toISOString() : val.toISOString();
+  }
+  if (val && typeof val === 'object') {
+    const maybeTs = val as {
+      toDate?: () => Date;
+      toMillis?: () => number;
+      seconds?: number;
+    };
+    if (typeof maybeTs.toDate === 'function') {
+      try {
+        return maybeTs.toDate().toISOString();
+      } catch {
+        // Fall through to alternative conversions
+      }
+    }
+    if (typeof maybeTs.toMillis === 'function') {
+      try {
+        return new Date(maybeTs.toMillis()).toISOString();
+      } catch {
+        // Fall through to alternative conversions
+      }
+    }
+    if (typeof maybeTs.seconds === 'number' && Number.isFinite(maybeTs.seconds)) {
+      return new Date(maybeTs.seconds * 1000).toISOString();
+    }
+  }
+  if (typeof val === 'number' && Number.isFinite(val)) {
+    return new Date(val).toISOString();
+  }
+  if (typeof val === 'string' && val.trim()) {
+    return val;
+  }
+  return new Date().toISOString();
+}
+
 export const DEMO_APP_USERS: AppUserProfile[] = [
   {
     uid: 'usr_aarav_101',
@@ -340,6 +377,105 @@ export function getUserRelationships(
   return { followers, following, likedBy, likedTargets };
 }
 
+export const DEMO_APP_USER_IDS = new Set(DEMO_APP_USERS.map((u) => u.uid));
+export const DEMO_SOCIAL_EDGE_IDS = new Set(DEMO_SOCIAL_EDGES.map((e) => e.id));
+export const DEMO_CHAT_ROOM_IDS = new Set(DEMO_CHAT_ROOMS.map((r) => r.id));
+
+const TEST_ID_PREFIX_RE = /^(?:dummy|test|demo|sample|sandbox|fake)[_-]/i;
+
+export function isDummyAppUser(user: AppUserProfile): boolean {
+  if (DEMO_APP_USER_IDS.has(user.uid)) return true;
+  if (TEST_ID_PREFIX_RE.test(user.uid)) return true;
+  if (TEST_ID_PREFIX_RE.test(user.username)) return true;
+  if (/promo\s*bot/i.test(user.displayName)) return true;
+  return false;
+}
+
+export function isDummySocialEdge(
+  edge: SocialEdgeItem,
+  dummyUserIds: ReadonlySet<string> = DEMO_APP_USER_IDS
+): boolean {
+  if (DEMO_SOCIAL_EDGE_IDS.has(edge.id)) return true;
+  if (TEST_ID_PREFIX_RE.test(edge.id)) return true;
+  if (dummyUserIds.has(edge.actorId) || dummyUserIds.has(edge.targetId)) {
+    return true;
+  }
+  return false;
+}
+
+export function isDummyChatRoom(
+  room: ChatRoomItem,
+  dummyUserIds: ReadonlySet<string> = DEMO_APP_USER_IDS
+): boolean {
+  if (DEMO_CHAT_ROOM_IDS.has(room.id)) return true;
+  if (TEST_ID_PREFIX_RE.test(room.id)) return true;
+  if (room.participantIds.some((pid) => dummyUserIds.has(pid))) {
+    return true;
+  }
+  return false;
+}
+
+export interface SocialCleanupPlan {
+  userIds: string[];
+  edgeIds: string[];
+  roomIds: string[];
+  dummyUserCount: number;
+  dummyEdgeCount: number;
+  dummyRoomCount: number;
+  flaggedSpamUserCount: number;
+  flaggedRoomCount: number;
+  totalCount: number;
+}
+
+export function buildSocialCleanupPlan(
+  users: ReadonlyArray<AppUserProfile>,
+  edges: ReadonlyArray<SocialEdgeItem>,
+  rooms: ReadonlyArray<ChatRoomItem>,
+  options: { includeBlockedOrFlagged?: boolean } = {}
+): SocialCleanupPlan {
+  const includeFlagged = Boolean(options.includeBlockedOrFlagged);
+  const dummyUsers = users.filter(isDummyAppUser);
+  const targetUserIds = new Set(dummyUsers.map((u) => u.uid));
+
+  const flaggedSpamUsers = includeFlagged
+    ? users.filter((u) => u.isBlocked && !targetUserIds.has(u.uid))
+    : [];
+  for (const u of flaggedSpamUsers) {
+    targetUserIds.add(u.uid);
+  }
+
+  const targetEdges = edges.filter((e) => isDummySocialEdge(e, targetUserIds));
+  const dummyOnlyRooms = rooms.filter((r) => isDummyChatRoom(r, targetUserIds));
+  const dummyRoomIds = new Set(dummyOnlyRooms.map((r) => r.id));
+
+  const extraFlaggedRooms = includeFlagged
+    ? rooms.filter((r) => r.flaggedSpam && !dummyRoomIds.has(r.id))
+    : [];
+
+  const roomIds = [
+    ...dummyOnlyRooms.map((r) => r.id),
+    ...extraFlaggedRooms.map((r) => r.id),
+  ];
+  const userIds = Array.from(targetUserIds);
+  const edgeIds = targetEdges.map((e) => e.id);
+
+  return {
+    userIds,
+    edgeIds,
+    roomIds,
+    dummyUserCount: dummyUsers.length,
+    dummyEdgeCount: edges.filter((e) =>
+      isDummySocialEdge(e, new Set(dummyUsers.map((u) => u.uid)))
+    ).length,
+    dummyRoomCount: rooms.filter((r) =>
+      isDummyChatRoom(r, new Set(dummyUsers.map((u) => u.uid)))
+    ).length,
+    flaggedSpamUserCount: flaggedSpamUsers.length,
+    flaggedRoomCount: extraFlaggedRooms.length,
+    totalCount: userIds.length + edgeIds.length + roomIds.length,
+  };
+}
+
 export function buildAndroidSocialFirestoreEndpoints(config: {
   projectId: string;
   firestoreDatabaseId: string;
@@ -383,22 +519,34 @@ export function generateAndroidSocialIntegrationCode(config: {
 package com.cyberking.shayarilok.social
 
 import com.google.firebase.FirebaseApp
-import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.Query
+
+data class LiveUserStatus(
+    val exists: Boolean,
+    val displayName: String,
+    val username: String,
+    val city: String,
+    val bio: String,
+    val isBlocked: Boolean,
+    val blockReason: String
+)
 
 class ShayariSocialRepository {
 
-    // CRITICAL: Connect to the named Firestore database used by your Admin Monitor
+    // CRITICAL: Connect to the named Firestore database used by your Admin Panel
     private val db: FirebaseFirestore = FirebaseFirestore.getInstance(
         FirebaseApp.getInstance(),
         "${dbId}"
     )
     private val auth: FirebaseAuth = FirebaseAuth.getInstance()
+    private var profileListener: ListenerRegistration? = null
 
-    // 1. Sync User Profile (Name, City, Address, Bio, Online Status) -> /appUsers/{uid}
+    // 1. Safe Profile Create / Update -> /appUsers/{uid}
+    // Uses .get() first so returning users only update editable fields without violating createdAt immutability rules.
     fun syncUserProfile(
         displayName: String,
         username: String,
@@ -408,37 +556,70 @@ class ShayariSocialRepository {
         onComplete: (Boolean, String?) -> Unit
     ) {
         val uid = auth.currentUser?.uid ?: return onComplete(false, "User not signed in")
-        val payload = hashMapOf(
-            "uid" to uid,
-            "displayName" to displayName.take(100),
-            "username" to username.replace("[^a-zA-Z0-9_.]".toRegex(), "").take(40),
-            "city" to city.take(80),
-            "address" to address.take(200),
-            "bio" to bio.take(300),
-            "isOnline" to true,
-            "isBlocked" to false,
-            "blockReason" to "",
-            "followersCount" to 0,
-            "followingCount" to 0,
-            "likesReceivedCount" to 0,
-            "createdAt" to FieldValue.serverTimestamp(),
-            "updatedAt" to FieldValue.serverTimestamp()
-        )
-        db.collection("appUsers").document(uid)
-            .set(payload)
-            .addOnSuccessListener { onComplete(true, null) }
-            .addOnFailureListener { e -> onComplete(false, e.message) }
+        val cleanHandle = username.replace("[^a-zA-Z0-9_.]".toRegex(), "").ifBlank { "user_\${uid.take(6)}" }.take(40)
+        val userRef = db.collection("appUsers").document(uid)
+
+        userRef.get().addOnSuccessListener { snap ->
+            if (snap.exists()) {
+                val updates = hashMapOf<String, Any>(
+                    "displayName" to displayName.take(100),
+                    "username" to cleanHandle,
+                    "city" to city.take(80),
+                    "address" to address.take(200),
+                    "bio" to bio.take(300),
+                    "isOnline" to true,
+                    "updatedAt" to FieldValue.serverTimestamp()
+                )
+                userRef.update(updates)
+                    .addOnSuccessListener { onComplete(true, null) }
+                    .addOnFailureListener { e -> onComplete(false, e.message) }
+            } else {
+                val createPayload = hashMapOf(
+                    "uid" to uid,
+                    "displayName" to displayName.take(100),
+                    "username" to cleanHandle,
+                    "city" to city.take(80),
+                    "address" to address.take(200),
+                    "bio" to bio.take(300),
+                    "isOnline" to true,
+                    "isBlocked" to false,
+                    "blockReason" to "",
+                    "followersCount" to 0,
+                    "followingCount" to 0,
+                    "likesReceivedCount" to 0,
+                    "createdAt" to FieldValue.serverTimestamp(),
+                    "updatedAt" to FieldValue.serverTimestamp()
+                )
+                userRef.set(createPayload)
+                    .addOnSuccessListener { onComplete(true, null) }
+                    .addOnFailureListener { e -> onComplete(false, e.message) }
+            }
+        }.addOnFailureListener { e -> onComplete(false, e.message) }
     }
 
-    // 2. Real-Time Block Enforcement Check (Blocks spam users instantaneously)
-    fun observeMyBlockStatus(onStatus: (isBlocked: Boolean, reason: String) -> Unit) {
+    // 2. Real-Time Profile, Block & Removal Listener (Zero-Delay Admin Enforcement)
+    // Reflects Admin profile edits, instant blocking, and permanent account deletion immediately.
+    fun observeMyProfileAndBlockStatus(onStatus: (LiveUserStatus) -> Unit) {
         val uid = auth.currentUser?.uid ?: return
-        db.collection("appUsers").document(uid).addSnapshotListener { snap, _ ->
-            if (snap != null && snap.exists()) {
-                val blocked = snap.getBoolean("isBlocked") ?: false
-                val reason = snap.getString("blockReason") ?: ""
-                onStatus(blocked, reason)
+        profileListener?.remove()
+        profileListener = db.collection("appUsers").document(uid).addSnapshotListener { snap, error ->
+            if (error != null) return@addSnapshotListener
+            if (snap == null || !snap.exists()) {
+                // Admin removed this account permanently -> force immediate sign-out / lockout in app
+                onStatus(LiveUserStatus(false, "", "", "", "", true, "Account removed by Admin"))
+                return@addSnapshotListener
             }
+            onStatus(
+                LiveUserStatus(
+                    exists = true,
+                    displayName = snap.getString("displayName") ?: "",
+                    username = snap.getString("username") ?: "",
+                    city = snap.getString("city") ?: "",
+                    bio = snap.getString("bio") ?: "",
+                    isBlocked = snap.getBoolean("isBlocked") ?: false,
+                    blockReason = snap.getString("blockReason") ?: ""
+                )
+            )
         }
     }
 
@@ -463,7 +644,7 @@ class ShayariSocialRepository {
         db.collection("socialEdges").document(edgeId).set(edgeData)
     }
 
-    // 4. Deterministic 1-on-1 Room ID + Send Real-Time Message -> /chatRooms/{roomId}/messages
+    // 4. Deterministic 1-on-1 Room ID + Rule-Compliant Real-Time Chat Write
     fun buildRoomId(uidA: String, uidB: String): String {
         val sorted = listOf(uidA, uidB).sorted()
         return "room_\${sorted[0]}_\${sorted[1]}"
@@ -481,15 +662,10 @@ class ShayariSocialRepository {
         val roomRef = db.collection("chatRooms").document(roomId)
         val msgRef = roomRef.collection("messages").document()
 
-        val roomUpdate = hashMapOf(
-            "participantIds" to listOf(senderUid, receiverUid),
-            "participantNames" to listOf(senderName.take(100), receiverName.take(100)),
-            "lastMessage" to text.take(1000),
-            "lastSenderId" to senderUid,
-            "messageCount" to FieldValue.increment(1),
-            "flaggedSpam" to false,
-            "updatedAt" to FieldValue.serverTimestamp()
-        )
+        val sortedPair = listOf(
+            senderUid to senderName.take(100),
+            receiverUid to receiverName.take(100)
+        ).sortedBy { it.first }
 
         val messagePayload = hashMapOf(
             "roomId" to roomId,
@@ -501,15 +677,41 @@ class ShayariSocialRepository {
             "createdAt" to FieldValue.serverTimestamp()
         )
 
-        roomRef.set(roomUpdate).addOnSuccessListener {
-            msgRef.set(messagePayload)
-                .addOnFailureListener { e -> onError(e.message ?: "Blocked by moderation rules") }
+        roomRef.get().addOnSuccessListener { roomSnap ->
+            val roomTask = if (roomSnap.exists()) {
+                // Only update mutable room metadata fields allowed by Firestore security rules
+                roomRef.update(
+                    mapOf(
+                        "lastMessage" to text.take(1000),
+                        "lastSenderId" to senderUid,
+                        "messageCount" to FieldValue.increment(1),
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    )
+                )
+            } else {
+                roomRef.set(
+                    hashMapOf(
+                        "participantIds" to sortedPair.map { it.first },
+                        "participantNames" to sortedPair.map { it.second },
+                        "lastMessage" to text.take(1000),
+                        "lastSenderId" to senderUid,
+                        "messageCount" to 1,
+                        "flaggedSpam" to false,
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    )
+                )
+            }
+
+            roomTask.addOnSuccessListener {
+                msgRef.set(messagePayload)
+                    .addOnFailureListener { e -> onError(e.message ?: "Blocked by moderation rules") }
+            }.addOnFailureListener { e -> onError(e.message ?: "Failed to update chat room") }
         }.addOnFailureListener { e -> onError(e.message ?: "Failed to open chat room") }
     }
 
     // 5. Listen to 1-on-1 Messages in Real Time
-    fun listenMessages(roomId: String, onMessages: (List<Map<String, Any>>) -> Unit) {
-        db.collection("chatRooms").document(roomId)
+    fun listenMessages(roomId: String, onMessages: (List<Map<String, Any>>) -> Unit): ListenerRegistration {
+        return db.collection("chatRooms").document(roomId)
             .collection("messages")
             .orderBy("createdAt", Query.Direction.ASCENDING)
             .addSnapshotListener { snap, _ ->
@@ -517,6 +719,11 @@ class ShayariSocialRepository {
                     onMessages(snap.documents.mapNotNull { it.data })
                 }
             }
+    }
+
+    fun stopListeners() {
+        profileListener?.remove()
+        profileListener = null
     }
 }
 `;

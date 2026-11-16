@@ -33,7 +33,7 @@ import {
 
 interface NotificationsSectionProps {
   config: ShayariLokConfig;
-  onUpdate: (patch: Partial<ShayariLokConfig>) => void;
+  onUpdate: (patch: Partial<ShayariLokConfig>, instantSync?: boolean) => void;
   websiteContent: WebsiteContentSettings;
   onUpdateWebsiteContent: (next: WebsiteContentSettings) => void;
   standaloneWebsiteUrl: string;
@@ -139,7 +139,7 @@ export const NotificationsSection: React.FC<NotificationsSectionProps> = ({
             }
           : n
       );
-      onUpdate({ notifications: updated });
+      onUpdate({ notifications: updated }, true);
       resetForm();
       return;
     }
@@ -152,7 +152,7 @@ export const NotificationsSection: React.FC<NotificationsSectionProps> = ({
       time_label: timeLabel.trim() || 'Today',
     };
 
-    onUpdate({ notifications: [created, ...config.notifications] });
+    onUpdate({ notifications: [created, ...config.notifications] }, true);
     resetForm();
   };
 
@@ -166,9 +166,12 @@ export const NotificationsSection: React.FC<NotificationsSectionProps> = ({
   };
 
   const handleDelete = (id: number) => {
-    onUpdate({
-      notifications: config.notifications.filter((n) => n.id !== id),
-    });
+    onUpdate(
+      {
+        notifications: config.notifications.filter((n) => n.id !== id),
+      },
+      true
+    );
     if (editingId === id) {
       resetForm();
     }

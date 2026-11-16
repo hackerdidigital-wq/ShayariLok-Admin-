@@ -1,15 +1,20 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import type { User } from 'firebase/auth';
 import {
+  Activity,
   Ban,
   Check,
+  CheckCircle2,
   Code2,
   Copy,
   Database,
+  Eraser,
   Flag,
   Heart,
   MapPin,
   MessagesSquare,
+  Pencil,
+  RefreshCw,
   Search,
   ShieldAlert,
   ShieldCheck,
@@ -17,16 +22,24 @@ import {
   UserCheck,
   UserPlus,
   Users,
+  X,
 } from 'lucide-react';
 import firebaseConfig from '../../firebase-applet-config.json';
 import {
+  cleanupDummySocialDataInFirestore,
+  deleteAppUserInFirestore,
   deleteChatMessageInFirestore,
+  deleteChatRoomInFirestore,
+  deleteSocialEdgeInFirestore,
   seedDemoSocialDataToFirestore,
   subscribeChatRoomMessages,
   subscribeSocialMonitorData,
   toggleAppUserBlockInFirestore,
   toggleChatRoomSpamFlagInFirestore,
   toggleMessageFlagInFirestore,
+  updateAppUserProfileInFirestore,
+  verifyDirectFirestoreConnection,
+  type CollectionConnectionStatus,
 } from '../services/socialFirestore';
 import type {
   AppUserProfile,
@@ -41,15 +54,18 @@ import {
   DEMO_CHAT_ROOMS,
   DEMO_SOCIAL_EDGES,
   buildAndroidSocialFirestoreEndpoints,
+  buildSocialCleanupPlan,
   computeSocialOverview,
   filterAppUsers,
   filterChatRooms,
   generateAndroidSocialIntegrationCode,
   getUserRelationships,
+  isDummyAppUser,
 } from '../utils/socialMonitor';
 
 interface SocialMonitorSectionProps {
   user: User | null;
+  activeSiteId?: string;
   onSignIn: () => void;
 }
 
@@ -57,6 +73,7 @@ type MonitorTab = 'chats' | 'users' | 'sdk';
 
 export const SocialMonitorSection: React.FC<SocialMonitorSectionProps> = ({
   user,
+  activeSiteId,
   onSignIn,
 }) => {
   const [activeTab, setActiveTab] = useState<MonitorTab>('chats');
@@ -64,7 +81,25 @@ export const SocialMonitorSection: React.FC<SocialMonitorSectionProps> = ({
     user ? 'firestore' : 'sandbox'
   );
   const [cloudError, setCloudError] = useState<string | null>(null);
+  const [actionNotice, setActionNotice] = useState<{
+    type: 'success' | 'info' | 'error';
+    text: string;
+  } | null>(null);
   const [seeding, setSeeding] = useState(false);
+  const [busyAction, setBusyAction] = useState(false);
+
+  // Direct Firestore 5-collection health state
+  const [checkingDb, setCheckingDb] = useState(false);
+  const [dbHealth, setDbHealth] = useState<CollectionConnectionStatus[] | null>(
+    null
+  );
+  const [streamStatus, setStreamStatus] = useState<
+    Record<'appUsers' | 'socialEdges' | 'chatRooms', { status: 'connecting' | 'live' | 'error'; detail: string }>
+  >({
+    appUsers: { status: 'connecting', detail: 'Waiting for snapshot...' },
+    socialEdges: { status: 'connecting', detail: 'Waiting for snapshot...' },
+    chatRooms: { status: 'connecting', detail: 'Waiting for snapshot...' },
+  });
 
   // Cloud state
   const [cloudUsers, setCloudUsers] = useState<AppUserProfile[]>([]);
@@ -72,11 +107,11 @@ export const SocialMonitorSection: React.FC<SocialMonitorSectionProps> = ({
   const [cloudRooms, setCloudRooms] = useState<ChatRoomItem[]>([]);
   const [cloudMessages, setCloudMessages] = useState<ChatMessageItem[]>([]);
 
-  // Sandbox state (deterministic interactive state when offline/unauthenticated or empty)
+  // Sandbox state (deterministic interactive state when unauthenticated)
   const [sandboxUsers, setSandboxUsers] = useState<AppUserProfile[]>(() => [
     ...DEMO_APP_USERS,
   ]);
-  const [sandboxEdges] = useState<SocialEdgeItem[]>(() => [
+  const [sandboxEdges, setSandboxEdges] = useState<SocialEdgeItem[]>(() => [
     ...DEMO_SOCIAL_EDGES,
   ]);
   const [sandboxRooms, setSandboxRooms] = useState<ChatRoomItem[]>(() => [
@@ -101,21 +136,63 @@ export const SocialMonitorSection: React.FC<SocialMonitorSectionProps> = ({
     DEMO_CHAT_ROOMS[0].id
   );
 
+  // Modals (Zero window.alert / window.confirm)
   const [blockModalUser, setBlockModalUser] = useState<AppUserProfile | null>(
     null
   );
   const [blockReasonInput, setBlockReasonInput] = useState(
     'Spam / Unauthorized promotional links'
   );
+
+  const [editModalUser, setEditModalUser] = useState<AppUserProfile | null>(
+    null
+  );
+  const [editForm, setEditForm] = useState({
+    displayName: '',
+    username: '',
+    city: '',
+    address: '',
+    bio: '',
+    isOnline: true,
+  });
+
+  const [deleteUserTarget, setDeleteUserTarget] =
+    useState<AppUserProfile | null>(null);
+  const [deleteRoomTarget, setDeleteRoomTarget] = useState<ChatRoomItem | null>(
+    null
+  );
+  const [cleanupModalOpen, setCleanupModalOpen] = useState(false);
+  const [cleanupIncludeFlagged, setCleanupIncludeFlagged] = useState(false);
+
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const runLiveDbVerification = useCallback(async () => {
+    setCheckingDb(true);
+    try {
+      const results = await verifyDirectFirestoreConnection({
+        uid: user?.uid ?? null,
+        activeSiteId: activeSiteId ?? null,
+      });
+      setDbHealth(results);
+    } finally {
+      setCheckingDb(false);
+    }
+  }, [user?.uid, activeSiteId]);
 
   useEffect(() => {
     if (!user) {
       setDataSource('sandbox');
+      setDbHealth(null);
       return;
     }
     setDataSource('firestore');
     setCloudError(null);
+    setStreamStatus({
+      appUsers: { status: 'connecting', detail: 'Subscribing to /appUsers...' },
+      socialEdges: { status: 'connecting', detail: 'Subscribing to /socialEdges...' },
+      chatRooms: { status: 'connecting', detail: 'Subscribing to /chatRooms...' },
+    });
+
     const unsub = subscribeSocialMonitorData({
       onUsers: (list) => {
         setCloudUsers(list);
@@ -126,25 +203,26 @@ export const SocialMonitorSection: React.FC<SocialMonitorSectionProps> = ({
       onRooms: (list) => {
         setCloudRooms(list);
       },
+      onCollectionStatus: (col, status, detail) => {
+        setStreamStatus((prev) => ({
+          ...prev,
+          [col]: { status, detail },
+        }));
+      },
       onError: (err) => {
         setCloudError(
           err.message.includes('Missing or insufficient permissions')
-            ? 'Firestore permission notice: Only verified Admin email can read all user chat logs. Showing interactive Sandbox preview.'
+            ? 'Firestore permission notice: Only the verified Admin email can read/write live social & chat collections.'
             : err.message
         );
-        setDataSource('sandbox');
       },
     });
+    void runLiveDbVerification();
     return () => unsub();
-  }, [user]);
+  }, [user, runLiveDbVerification]);
 
   const effectiveUsers =
-    dataSource === 'firestore' && cloudUsers.length > 0
-      ? cloudUsers
-      : dataSource === 'firestore' && cloudUsers.length === 0
-        ? []
-        : sandboxUsers;
-
+    dataSource === 'firestore' ? cloudUsers : sandboxUsers;
   const effectiveEdges =
     dataSource === 'firestore' ? cloudEdges : sandboxEdges;
   const effectiveRooms =
@@ -154,6 +232,8 @@ export const SocialMonitorSection: React.FC<SocialMonitorSectionProps> = ({
     if (effectiveRooms.length > 0) {
       const exists = effectiveRooms.some((r) => r.id === selectedRoomId);
       if (!exists) setSelectedRoomId(effectiveRooms[0].id);
+    } else {
+      setSelectedRoomId('');
     }
   }, [effectiveRooms, selectedRoomId]);
 
@@ -161,6 +241,8 @@ export const SocialMonitorSection: React.FC<SocialMonitorSectionProps> = ({
     if (effectiveUsers.length > 0) {
       const exists = effectiveUsers.some((u) => u.uid === selectedUserId);
       if (!exists) setSelectedUserId(effectiveUsers[0].uid);
+    } else {
+      setSelectedUserId('');
     }
   }, [effectiveUsers, selectedUserId]);
 
@@ -179,6 +261,22 @@ export const SocialMonitorSection: React.FC<SocialMonitorSectionProps> = ({
 
   const overview = useMemo(
     () => computeSocialOverview(effectiveUsers, effectiveEdges, effectiveRooms),
+    [effectiveUsers, effectiveEdges, effectiveRooms]
+  );
+
+  const cleanupPlan = useMemo(
+    () =>
+      buildSocialCleanupPlan(effectiveUsers, effectiveEdges, effectiveRooms, {
+        includeBlockedOrFlagged: cleanupIncludeFlagged,
+      }),
+    [effectiveUsers, effectiveEdges, effectiveRooms, cleanupIncludeFlagged]
+  );
+
+  const dummyOnlyPlan = useMemo(
+    () =>
+      buildSocialCleanupPlan(effectiveUsers, effectiveEdges, effectiveRooms, {
+        includeBlockedOrFlagged: false,
+      }),
     [effectiveUsers, effectiveEdges, effectiveRooms]
   );
 
@@ -244,6 +342,67 @@ export const SocialMonitorSection: React.FC<SocialMonitorSectionProps> = ({
     }
   };
 
+  const openEditUserModal = (target: AppUserProfile) => {
+    setEditModalUser(target);
+    setEditForm({
+      displayName: target.displayName,
+      username: target.username,
+      city: target.city,
+      address: target.address,
+      bio: target.bio,
+      isOnline: target.isOnline,
+    });
+  };
+
+  const handleSaveEditedProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editModalUser) return;
+    setBusyAction(true);
+    setCloudError(null);
+
+    try {
+      if (dataSource === 'firestore') {
+        await updateAppUserProfileInFirestore(editModalUser.uid, editForm);
+        setActionNotice({
+          type: 'success',
+          text: `${editForm.displayName} की प्रोफ़ाइल सीधे Firestore में अपडेट हो गई (User App पर तुरंत दिखेगी)।`,
+        });
+      } else {
+        const cleanName = editForm.displayName.trim() || editModalUser.displayName;
+        const cleanHandle =
+          editForm.username.trim().replace(/[^a-zA-Z0-9_.]/g, '') ||
+          editModalUser.username;
+        setSandboxUsers((prev) =>
+          prev.map((u) =>
+            u.uid === editModalUser.uid
+              ? {
+                  ...u,
+                  displayName: cleanName,
+                  username: cleanHandle,
+                  city: editForm.city.trim(),
+                  address: editForm.address.trim(),
+                  bio: editForm.bio.trim(),
+                  isOnline: editForm.isOnline,
+                  updatedAt: new Date().toISOString(),
+                }
+              : u
+          )
+        );
+        setActionNotice({
+          type: 'info',
+          text: `${cleanName} की प्रोफ़ाइल Sandbox में अपडेट हुई।`,
+        });
+      }
+      setEditModalUser(null);
+    } catch (err) {
+      setCloudError(
+        err instanceof Error ? err.message : 'Failed to update user profile'
+      );
+    } finally {
+      setBusyAction(false);
+    }
+  };
+
   const handleConfirmBlockToggle = async (
     targetUser: AppUserProfile,
     nextBlocked: boolean,
@@ -252,6 +411,12 @@ export const SocialMonitorSection: React.FC<SocialMonitorSectionProps> = ({
     if (dataSource === 'firestore') {
       try {
         await toggleAppUserBlockInFirestore(targetUser.uid, nextBlocked, reason);
+        setActionNotice({
+          type: 'success',
+          text: nextBlocked
+            ? `${targetUser.displayName} को ब्लॉक किया गया।`
+            : `${targetUser.displayName} को अनब्लॉक किया गया।`,
+        });
       } catch (err) {
         setCloudError(
           err instanceof Error ? err.message : 'Failed to update block status'
@@ -271,6 +436,135 @@ export const SocialMonitorSection: React.FC<SocialMonitorSectionProps> = ({
       );
     }
     setBlockModalUser(null);
+  };
+
+  const handleConfirmDeleteUser = async () => {
+    if (!deleteUserTarget) return;
+    const target = deleteUserTarget;
+    setBusyAction(true);
+    setCloudError(null);
+    try {
+      if (dataSource === 'firestore') {
+        const res = await deleteAppUserInFirestore(target.uid);
+        setActionNotice({
+          type: 'success',
+          text: `यूजर "${target.displayName}" (${target.uid}) हमेशा के लिए डिलीट हो गया (${res.deletedEdges} edges, ${res.deletedRooms} rooms, ${res.deletedMessages} messages cleaned)।`,
+        });
+      } else {
+        setSandboxUsers((prev) => prev.filter((u) => u.uid !== target.uid));
+        setSandboxEdges((prev) =>
+          prev.filter((e) => e.actorId !== target.uid && e.targetId !== target.uid)
+        );
+        setSandboxRooms((prev) =>
+          prev.filter((r) => !r.participantIds.includes(target.uid))
+        );
+        setActionNotice({
+          type: 'info',
+          text: `Sandbox यूजर "${target.displayName}" हटाया गया।`,
+        });
+      }
+      setDeleteUserTarget(null);
+    } catch (err) {
+      setCloudError(
+        err instanceof Error ? err.message : 'Failed to permanently delete user'
+      );
+    } finally {
+      setBusyAction(false);
+    }
+  };
+
+  const handleConfirmDeleteRoom = async () => {
+    if (!deleteRoomTarget) return;
+    const room = deleteRoomTarget;
+    setBusyAction(true);
+    setCloudError(null);
+    try {
+      if (dataSource === 'firestore') {
+        const res = await deleteChatRoomInFirestore(room.id);
+        setActionNotice({
+          type: 'success',
+          text: `चैट रूम "${room.id}" और उसके ${res.deletedMessages} मैसेज हमेशा के लिए डिलीट हो गए।`,
+        });
+      } else {
+        setSandboxRooms((prev) => prev.filter((r) => r.id !== room.id));
+        setSandboxMessages((prev) => {
+          const copy = { ...prev };
+          delete copy[room.id];
+          return copy;
+        });
+        setActionNotice({
+          type: 'info',
+          text: `Sandbox चैट रूम "${room.id}" डिलीट हुआ।`,
+        });
+      }
+      setDeleteRoomTarget(null);
+    } catch (err) {
+      setCloudError(
+        err instanceof Error ? err.message : 'Failed to delete chat room'
+      );
+    } finally {
+      setBusyAction(false);
+    }
+  };
+
+  const handleDeleteEdge = async (edge: SocialEdgeItem) => {
+    setCloudError(null);
+    if (dataSource === 'firestore') {
+      try {
+        await deleteSocialEdgeInFirestore(edge.id);
+        setActionNotice({
+          type: 'success',
+          text: `Social edge (${edge.type}) हटाया गया।`,
+        });
+      } catch (err) {
+        setCloudError(
+          err instanceof Error ? err.message : 'Failed to delete social edge'
+        );
+      }
+    } else {
+      setSandboxEdges((prev) => prev.filter((e) => e.id !== edge.id));
+    }
+  };
+
+  const handleExecuteCleanup = async () => {
+    if (cleanupPlan.totalCount === 0) {
+      setCleanupModalOpen(false);
+      return;
+    }
+    setBusyAction(true);
+    setCloudError(null);
+    try {
+      if (dataSource === 'firestore') {
+        const res = await cleanupDummySocialDataInFirestore({
+          userIds: cleanupPlan.userIds,
+          edgeIds: cleanupPlan.edgeIds,
+          roomIds: cleanupPlan.roomIds,
+        });
+        await runLiveDbVerification();
+        setActionNotice({
+          type: 'success',
+          text: `Production Clean Complete: ${res.deletedUsers} dummy/spam users, ${res.deletedEdges} edges, ${res.deletedRooms} chat rooms व ${res.deletedMessages} messages स्थायी रूप से डिलीट हो गए!`,
+        });
+      } else {
+        const uSet = new Set(cleanupPlan.userIds);
+        const eSet = new Set(cleanupPlan.edgeIds);
+        const rSet = new Set(cleanupPlan.roomIds);
+        setSandboxUsers((prev) => prev.filter((u) => !uSet.has(u.uid)));
+        setSandboxEdges((prev) => prev.filter((e) => !eSet.has(e.id)));
+        setSandboxRooms((prev) => prev.filter((r) => !rSet.has(r.id)));
+        setActionNotice({
+          type: 'info',
+          text: `Sandbox से ${cleanupPlan.totalCount} dummy entries साफ़ की गईं।`,
+        });
+      }
+      setCleanupModalOpen(false);
+    } catch (err) {
+      setCloudError(
+        err instanceof Error ? err.message : 'Failed to clean dummy/test data'
+      );
+    } finally {
+      setBusyAction(false);
+    }
   };
 
   const handleToggleRoomSpam = async (room: ChatRoomItem) => {
@@ -335,6 +629,11 @@ export const SocialMonitorSection: React.FC<SocialMonitorSectionProps> = ({
     try {
       await seedDemoSocialDataToFirestore();
       setDataSource('firestore');
+      await runLiveDbVerification();
+      setActionNotice({
+        type: 'success',
+        text: 'टेस्ट/डेमो डेटा क्लाउड में जुड़ गया। टेस्ट के बाद "Cleanup Dummy / Test Data" से हटा सकते हैं।',
+      });
     } catch (err) {
       setCloudError(
         err instanceof Error ? err.message : 'Failed to seed demo social data'
@@ -347,7 +646,7 @@ export const SocialMonitorSection: React.FC<SocialMonitorSectionProps> = ({
   return (
     <div className="space-y-6">
       {/* Header & Mode Control */}
-      <div className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+      <div className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
         <div className="space-y-1">
           <div className="flex flex-wrap items-center gap-2 text-xs font-mono text-slate-500">
             <span>Firestore DB: {firebaseConfig.firestoreDatabaseId}</span>
@@ -360,15 +659,15 @@ export const SocialMonitorSection: React.FC<SocialMonitorSectionProps> = ({
               }
             >
               {dataSource === 'firestore'
-                ? 'Live Cloud Firestore Stream'
-                : 'Interactive Demo Sandbox'}
+                ? 'Live Cloud Firestore Stream (No Delay)'
+                : 'Local Sandbox Preview'}
             </span>
           </div>
           <h2 className="font-display text-lg font-bold text-slate-900">
-            Users &amp; Live Chats (चैटिंग और यूजर्स कंट्रोल)
+            Users, Profiles &amp; Live Chats Control Center
           </h2>
           <p className="text-xs sm:text-sm text-slate-600">
-            ऐप के सभी रजिस्टर्ड यूजर्स, शहर/पता, फॉलोअर्स/लाइक्स और 1-on-1 गुप्त चैट लॉग्स को रियल-टाइम मॉनिटर करें और स्पैम यूजर्स को तुरंत ब्लॉक करें।
+            लाइव Firestore से जुड़े यूजर्स की प्रोफ़ाइल एडिट करें, स्पैम/टॉक्सिक अकाउंट को ब्लॉक या स्थायी रूप से डिलीट करें और डमी डेटा साफ़ रखें।
           </p>
         </div>
 
@@ -400,31 +699,200 @@ export const SocialMonitorSection: React.FC<SocialMonitorSectionProps> = ({
             </div>
           )}
 
+          {user && (
+            <button
+              type="button"
+              disabled={checkingDb}
+              onClick={() => void runLiveDbVerification()}
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-slate-100 border border-slate-200 rounded-lg hover:bg-slate-200 disabled:opacity-60 whitespace-nowrap"
+            >
+              <RefreshCw
+                className={`w-3.5 h-3.5 text-indigo-600 ${checkingDb ? 'animate-spin' : ''}`}
+              />
+              <span>Verify Live DB</span>
+            </button>
+          )}
+
           <button
             type="button"
-            disabled={seeding}
-            onClick={() => void handleSeedToFirestore()}
-            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-60 whitespace-nowrap"
+            onClick={() => {
+              setCleanupIncludeFlagged(false);
+              setCleanupModalOpen(true);
+            }}
+            className={`flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg border whitespace-nowrap transition-colors ${
+              dummyOnlyPlan.totalCount > 0
+                ? 'bg-red-50 border-red-200 text-red-700 hover:bg-red-100'
+                : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+            }`}
           >
-            <Database className="w-3.5 h-3.5" />
+            <Eraser className="w-3.5 h-3.5" />
             <span>
-              {!user
-                ? 'Sign In for Live Sync'
-                : seeding
-                  ? 'Seeding...'
-                  : 'Seed Demo Data to Cloud'}
+              Cleanup Dummy / Test Data
+              {dummyOnlyPlan.totalCount > 0 ? ` (${dummyOnlyPlan.totalCount})` : ''}
             </span>
           </button>
+
+          {!user && (
+            <button
+              type="button"
+              onClick={onSignIn}
+              className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 whitespace-nowrap"
+            >
+              <Database className="w-3.5 h-3.5" />
+              <span>Sign In for Live Sync</span>
+            </button>
+          )}
         </div>
       </div>
 
-      {cloudError && (
+      {/* Direct 5-Collection Firestore Connection Diagnostics Bar */}
+      {user && dataSource === 'firestore' && (
+        <section className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Activity className="w-4 h-4 text-emerald-600" />
+              <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wide">
+                Direct Firestore Collection Health (5 Collections)
+              </h3>
+            </div>
+            <span className="font-mono text-[11px] text-slate-500">
+              appUsers (canonical for appusers) · users · socialEdges · chatRooms · publicSites
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5">
+            {(
+              dbHealth ?? [
+                {
+                  collection: 'appUsers',
+                  aliasNote: 'canonical for appusers',
+                  status: streamStatus.appUsers.status,
+                  latencyMs: null,
+                  detail: streamStatus.appUsers.detail,
+                  checkedAt: '',
+                },
+                {
+                  collection: 'users',
+                  aliasNote: 'admin workspace',
+                  status: 'live',
+                  latencyMs: null,
+                  detail: `users/${user.uid.slice(0, 8)}...`,
+                  checkedAt: '',
+                },
+                {
+                  collection: 'socialEdges',
+                  aliasNote: 'follows & likes',
+                  status: streamStatus.socialEdges.status,
+                  latencyMs: null,
+                  detail: streamStatus.socialEdges.detail,
+                  checkedAt: '',
+                },
+                {
+                  collection: 'chatRooms',
+                  aliasNote: '1-on-1 chats',
+                  status: streamStatus.chatRooms.status,
+                  latencyMs: null,
+                  detail: streamStatus.chatRooms.detail,
+                  checkedAt: '',
+                },
+                {
+                  collection: 'publicSites',
+                  aliasNote: 'live app & site mirror',
+                  status: 'live',
+                  latencyMs: null,
+                  detail: `publicSites/${(activeSiteId || user.uid).slice(0, 10)}...`,
+                  checkedAt: '',
+                },
+              ]
+            ).map((item) => (
+              <div
+                key={item.collection}
+                className={`p-2.5 rounded-lg border text-xs space-y-1 ${
+                  item.status === 'error'
+                    ? 'bg-red-50 border-red-200 text-red-900'
+                    : item.status === 'live'
+                      ? 'bg-emerald-50/60 border-emerald-200 text-emerald-950'
+                      : 'bg-slate-50 border-slate-200 text-slate-700'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-1.5">
+                  <span className="font-mono font-bold truncate">
+                    /{item.collection}
+                  </span>
+                  <span
+                    className={`font-mono text-[10px] font-semibold px-1.5 py-0.5 rounded ${
+                      item.status === 'error'
+                        ? 'bg-red-100 text-red-700'
+                        : item.status === 'live'
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : 'bg-amber-100 text-amber-800'
+                    }`}
+                  >
+                    {item.status === 'error'
+                      ? 'BLOCKED'
+                      : item.status === 'live'
+                        ? item.latencyMs !== null
+                          ? `${item.latencyMs}ms OK`
+                          : 'LIVE'
+                        : 'SYNCING'}
+                  </span>
+                </div>
+                <div className="text-[11px] opacity-85 truncate" title={item.detail}>
+                  {item.detail}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {actionNotice && (
         <div
           role="status"
-          className="px-4 py-3 rounded-xl border border-amber-200 bg-amber-50 text-xs sm:text-sm text-amber-900 flex items-center gap-2.5"
+          className={`px-4 py-3 rounded-xl border text-xs sm:text-sm flex items-center justify-between gap-2.5 ${
+            actionNotice.type === 'success'
+              ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+              : actionNotice.type === 'error'
+                ? 'bg-red-50 border-red-200 text-red-800'
+                : 'bg-indigo-50 border-indigo-200 text-indigo-900'
+          }`}
         >
-          <ShieldAlert className="w-4 h-4 text-amber-700 shrink-0" />
-          <span>{cloudError}</span>
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 shrink-0" />
+            <span>{actionNotice.text}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActionNotice(null)}
+            aria-label="Dismiss status notice"
+            className="p-1 rounded hover:bg-black/5 shrink-0"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {cloudError && (
+        <div
+          role="alert"
+          className="px-4 py-3 rounded-xl border border-red-200 bg-red-50 text-xs sm:text-sm text-red-900 flex flex-wrap items-center justify-between gap-2.5"
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <ShieldAlert className="w-4 h-4 text-red-700 shrink-0" />
+            <span className="break-words">{cloudError}</span>
+          </div>
+          {user && (
+            <button
+              type="button"
+              onClick={() => {
+                setCloudError(null);
+                void runLiveDbVerification();
+              }}
+              className="px-3 py-1 text-xs font-semibold bg-white border border-red-200 rounded-lg text-red-700 hover:bg-red-100 shrink-0"
+            >
+              Retry DB Check
+            </button>
+          )}
         </div>
       )}
 
@@ -484,45 +952,59 @@ export const SocialMonitorSection: React.FC<SocialMonitorSectionProps> = ({
       </div>
 
       {/* Segmented Workspace Switch */}
-      <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-200/70 rounded-xl w-fit">
-        <button
-          type="button"
-          onClick={() => setActiveTab('chats')}
-          className={`flex items-center gap-2 px-4 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-colors whitespace-nowrap ${
-            activeTab === 'chats'
-              ? 'bg-white text-slate-900 shadow-xs'
-              : 'text-slate-600 hover:text-slate-900'
-          }`}
-        >
-          <MessagesSquare className="w-4 h-4" />
-          <span>Live Chat Logs ({effectiveRooms.length})</span>
-        </button>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-200/70 rounded-xl w-fit">
+          <button
+            type="button"
+            onClick={() => setActiveTab('chats')}
+            className={`flex items-center gap-2 px-4 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-colors whitespace-nowrap ${
+              activeTab === 'chats'
+                ? 'bg-white text-slate-900 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <MessagesSquare className="w-4 h-4" />
+            <span>Live Chat Logs ({effectiveRooms.length})</span>
+          </button>
 
-        <button
-          type="button"
-          onClick={() => setActiveTab('users')}
-          className={`flex items-center gap-2 px-4 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-colors whitespace-nowrap ${
-            activeTab === 'users'
-              ? 'bg-white text-slate-900 shadow-xs'
-              : 'text-slate-600 hover:text-slate-900'
-          }`}
-        >
-          <Users className="w-4 h-4" />
-          <span>Users &amp; Social Graph ({effectiveUsers.length})</span>
-        </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('users')}
+            className={`flex items-center gap-2 px-4 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-colors whitespace-nowrap ${
+              activeTab === 'users'
+                ? 'bg-white text-slate-900 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Users className="w-4 h-4" />
+            <span>Users &amp; Social Graph ({effectiveUsers.length})</span>
+          </button>
 
-        <button
-          type="button"
-          onClick={() => setActiveTab('sdk')}
-          className={`flex items-center gap-2 px-4 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-colors whitespace-nowrap ${
-            activeTab === 'sdk'
-              ? 'bg-white text-slate-900 shadow-xs'
-              : 'text-slate-600 hover:text-slate-900'
-          }`}
-        >
-          <Code2 className="w-4 h-4" />
-          <span>Android Chat &amp; Social SDK Code</span>
-        </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('sdk')}
+            className={`flex items-center gap-2 px-4 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-colors whitespace-nowrap ${
+              activeTab === 'sdk'
+                ? 'bg-white text-slate-900 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Code2 className="w-4 h-4" />
+            <span>Android Chat &amp; Social SDK Code</span>
+          </button>
+        </div>
+
+        {user && dataSource === 'firestore' && (
+          <button
+            type="button"
+            disabled={seeding}
+            onClick={() => void handleSeedToFirestore()}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-60 whitespace-nowrap"
+          >
+            <Database className="w-3.5 h-3.5 text-indigo-600" />
+            <span>{seeding ? 'Seeding Test Data...' : 'Seed Test Data (QA Only)'}</span>
+          </button>
+        )}
       </div>
 
       {/* TAB 1: LIVE CHAT LOGS (Secret Real-Time Monitor) */}
@@ -561,16 +1043,14 @@ export const SocialMonitorSection: React.FC<SocialMonitorSectionProps> = ({
             <div className="divide-y divide-slate-100 max-h-[520px] overflow-y-auto flex-1">
               {filteredRooms.length === 0 ? (
                 <div className="p-6 text-center text-xs text-slate-500 space-y-2">
-                  <p>अभी कोई चैट लॉग नहीं मिला।</p>
-                  {user && dataSource === 'firestore' && (
-                    <button
-                      type="button"
-                      onClick={() => void handleSeedToFirestore()}
-                      className="px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 rounded-lg"
-                    >
-                      Seed Demo Conversations
-                    </button>
-                  )}
+                  <p className="font-semibold text-slate-700">
+                    {dataSource === 'firestore'
+                      ? 'Production Firestore Clean — 0 Chat Rooms'
+                      : 'कोई चैट रूम नहीं मिला।'}
+                  </p>
+                  <p>
+                    जब यूजर ऐप में कोई नई बातचीत शुरू होगी, तो वह बिना किसी देरी के यहाँ लाइव दिखेगी।
+                  </p>
                 </div>
               ) : (
                 filteredRooms.map((room) => {
@@ -612,7 +1092,7 @@ export const SocialMonitorSection: React.FC<SocialMonitorSectionProps> = ({
             </div>
           </div>
 
-          {/* Full Transcript Viewer + Instant Block Controls */}
+          {/* Full Transcript Viewer + Instant Block + Delete Room Controls */}
           <div className="lg:col-span-8 bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col">
             {activeRoom ? (
               <>
@@ -645,6 +1125,15 @@ export const SocialMonitorSection: React.FC<SocialMonitorSectionProps> = ({
                           ? 'Unflag Spam Room'
                           : 'Flag Room as Spam'}
                       </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setDeleteRoomTarget(activeRoom)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-red-200 bg-white text-red-700 hover:bg-red-50"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Delete Room</span>
                     </button>
 
                     {activeRoom.participantIds.map((pid, idx) => {
@@ -758,14 +1247,16 @@ export const SocialMonitorSection: React.FC<SocialMonitorSectionProps> = ({
               </>
             ) : (
               <div className="p-12 text-center text-sm text-slate-500">
-                किसी चैट रूम पर क्लिक करके लाइव बातचीत और मैसेज इतिहास देखें।
+                {effectiveRooms.length === 0
+                  ? 'प्रोडक्शन चैट डेटाबेस साफ़ है। किसी नई चैट के शुरू होने पर यहाँ लाइव लॉग दिखेगा।'
+                  : 'किसी चैट रूम पर क्लिक करके लाइव बातचीत और मैसेज इतिहास देखें।'}
               </div>
             )}
           </div>
         </div>
       )}
 
-      {/* TAB 2: USERS DIRECTORY + FULL SOCIAL GRAPH + BLOCKING */}
+      {/* TAB 2: USERS DIRECTORY + PROFILE EDIT + PERMANENT DELETE + SOCIAL GRAPH */}
       {activeTab === 'users' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
           {/* Searchable Users List */}
@@ -804,20 +1295,19 @@ export const SocialMonitorSection: React.FC<SocialMonitorSectionProps> = ({
             <div className="divide-y divide-slate-100">
               {filteredUsers.length === 0 ? (
                 <div className="p-8 text-center text-xs text-slate-500 space-y-2">
-                  <p>कोई यूजर रिकॉर्ड नहीं मिला।</p>
-                  {user && dataSource === 'firestore' && (
-                    <button
-                      type="button"
-                      onClick={() => void handleSeedToFirestore()}
-                      className="px-3.5 py-2 text-xs font-semibold text-indigo-700 bg-indigo-50 rounded-lg"
-                    >
-                      Seed Demo Users to Firestore
-                    </button>
-                  )}
+                  <p className="font-semibold text-slate-700">
+                    {dataSource === 'firestore'
+                      ? 'Production Environment Clean — 0 User Accounts'
+                      : 'कोई यूजर रिकॉर्ड नहीं मिला।'}
+                  </p>
+                  <p>
+                    यूजर ऐप से साइन-अप होते ही सभी असली यूजर्स यहाँ रीयल-टाइम दिखने लगेंगे।
+                  </p>
                 </div>
               ) : (
                 filteredUsers.map((u) => {
                   const isSelected = u.uid === selectedUserId;
+                  const isDummy = isDummyAppUser(u);
                   return (
                     <div
                       key={u.uid}
@@ -840,12 +1330,17 @@ export const SocialMonitorSection: React.FC<SocialMonitorSectionProps> = ({
                           <span className="font-mono text-[11px] text-slate-400">
                             ID: {u.uid}
                           </span>
+                          {isDummy && (
+                            <span className="font-mono text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
+                              DUMMY/TEST
+                            </span>
+                          )}
                         </div>
                         <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
                           <span className="inline-flex items-center gap-1">
                             <MapPin className="w-3.5 h-3.5 text-slate-400" />
                             <span>
-                              {u.city} — {u.address}
+                              {u.city || 'India'} — {u.address || 'Not provided'}
                             </span>
                           </span>
                         </div>
@@ -874,21 +1369,24 @@ export const SocialMonitorSection: React.FC<SocialMonitorSectionProps> = ({
                         </div>
                       </button>
 
-                      <div className="flex items-center gap-2 shrink-0">
+                      <div className="flex flex-wrap items-center gap-1.5 shrink-0">
                         <button
                           type="button"
-                          onClick={() => setSelectedUserId(u.uid)}
-                          className="px-3 py-1.5 text-xs font-medium text-indigo-700 bg-indigo-50 rounded-lg hover:bg-indigo-100 whitespace-nowrap"
+                          onClick={() => openEditUserModal(u)}
+                          title="Edit user profile"
+                          className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200 whitespace-nowrap"
                         >
-                          Social Graph
+                          <Pencil className="w-3.5 h-3.5" />
+                          <span>Edit</span>
                         </button>
+
                         {u.isBlocked ? (
                           <button
                             type="button"
                             onClick={() =>
                               void handleConfirmBlockToggle(u, false, '')
                             }
-                            className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 whitespace-nowrap"
+                            className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 whitespace-nowrap"
                           >
                             <UserCheck className="w-3.5 h-3.5" />
                             <span>Unblock</span>
@@ -897,12 +1395,22 @@ export const SocialMonitorSection: React.FC<SocialMonitorSectionProps> = ({
                           <button
                             type="button"
                             onClick={() => setBlockModalUser(u)}
-                            className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 whitespace-nowrap"
+                            className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 whitespace-nowrap"
                           >
                             <Ban className="w-3.5 h-3.5" />
                             <span>Block</span>
                           </button>
                         )}
+
+                        <button
+                          type="button"
+                          onClick={() => setDeleteUserTarget(u)}
+                          aria-label={`Delete ${u.displayName} permanently`}
+                          title="Delete account permanently"
+                          className="p-1.5 text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     </div>
                   );
@@ -915,7 +1423,7 @@ export const SocialMonitorSection: React.FC<SocialMonitorSectionProps> = ({
           <div className="lg:col-span-5 bg-white border border-slate-200 rounded-xl p-5 space-y-5">
             {inspectedUser ? (
               <>
-                <div className="border-b border-slate-200 pb-4 space-y-2">
+                <div className="border-b border-slate-200 pb-4 space-y-3">
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <h3 className="font-display text-base font-bold text-slate-900">
@@ -949,9 +1457,28 @@ export const SocialMonitorSection: React.FC<SocialMonitorSectionProps> = ({
                   <div className="text-xs text-slate-600 flex items-start gap-1.5">
                     <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
                     <span>
-                      <strong>{inspectedUser.city}:</strong>{' '}
-                      {inspectedUser.address}
+                      <strong>{inspectedUser.city || 'India'}:</strong>{' '}
+                      {inspectedUser.address || 'No address added'}
                     </span>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => openEditUserModal(inspectedUser)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                      <span>Edit Live Profile</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDeleteUserTarget(inspectedUser)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Delete Permanently</span>
+                    </button>
                   </div>
 
                   {inspectedUser.isBlocked && inspectedUser.blockReason && (
@@ -978,11 +1505,24 @@ export const SocialMonitorSection: React.FC<SocialMonitorSectionProps> = ({
                       ) : (
                         <ul className="space-y-1 text-xs text-slate-800">
                           {inspectedRelationships.followers.map((e) => (
-                            <li key={e.id} className="truncate">
-                              • {e.actorName}{' '}
-                              <span className="font-mono text-[10px] text-slate-400">
-                                ({e.actorId})
+                            <li
+                              key={e.id}
+                              className="flex items-center justify-between gap-1.5"
+                            >
+                              <span className="truncate">
+                                • {e.actorName}{' '}
+                                <span className="font-mono text-[10px] text-slate-400">
+                                  ({e.actorId})
+                                </span>
                               </span>
+                              <button
+                                type="button"
+                                onClick={() => void handleDeleteEdge(e)}
+                                aria-label={`Remove follower edge ${e.id}`}
+                                className="p-0.5 text-slate-400 hover:text-red-600 shrink-0"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
                             </li>
                           ))}
                         </ul>
@@ -998,11 +1538,24 @@ export const SocialMonitorSection: React.FC<SocialMonitorSectionProps> = ({
                       ) : (
                         <ul className="space-y-1 text-xs text-slate-800">
                           {inspectedRelationships.following.map((e) => (
-                            <li key={e.id} className="truncate">
-                              → {e.targetName}{' '}
-                              <span className="font-mono text-[10px] text-slate-400">
-                                ({e.targetId})
+                            <li
+                              key={e.id}
+                              className="flex items-center justify-between gap-1.5"
+                            >
+                              <span className="truncate">
+                                → {e.targetName}{' '}
+                                <span className="font-mono text-[10px] text-slate-400">
+                                  ({e.targetId})
+                                </span>
                               </span>
+                              <button
+                                type="button"
+                                onClick={() => void handleDeleteEdge(e)}
+                                aria-label={`Remove following edge ${e.id}`}
+                                className="p-0.5 text-slate-400 hover:text-red-600 shrink-0"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
                             </li>
                           ))}
                         </ul>
@@ -1028,8 +1581,19 @@ export const SocialMonitorSection: React.FC<SocialMonitorSectionProps> = ({
                       ) : (
                         <ul className="space-y-1 text-xs text-slate-800">
                           {inspectedRelationships.likedBy.map((e) => (
-                            <li key={e.id} className="truncate">
-                              ♥ {e.actorName}
+                            <li
+                              key={e.id}
+                              className="flex items-center justify-between gap-1.5"
+                            >
+                              <span className="truncate">♥ {e.actorName}</span>
+                              <button
+                                type="button"
+                                onClick={() => void handleDeleteEdge(e)}
+                                aria-label={`Remove like edge ${e.id}`}
+                                className="p-0.5 text-slate-400 hover:text-red-600 shrink-0"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
                             </li>
                           ))}
                         </ul>
@@ -1045,8 +1609,19 @@ export const SocialMonitorSection: React.FC<SocialMonitorSectionProps> = ({
                       ) : (
                         <ul className="space-y-1 text-xs text-slate-800">
                           {inspectedRelationships.likedTargets.map((e) => (
-                            <li key={e.id} className="truncate">
-                              → {e.targetName}
+                            <li
+                              key={e.id}
+                              className="flex items-center justify-between gap-1.5"
+                            >
+                              <span className="truncate">→ {e.targetName}</span>
+                              <button
+                                type="button"
+                                onClick={() => void handleDeleteEdge(e)}
+                                aria-label={`Remove liked target edge ${e.id}`}
+                                className="p-0.5 text-slate-400 hover:text-red-600 shrink-0"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
                             </li>
                           ))}
                         </ul>
@@ -1057,7 +1632,7 @@ export const SocialMonitorSection: React.FC<SocialMonitorSectionProps> = ({
               </>
             ) : (
               <div className="py-10 text-center text-xs text-slate-500">
-                किसी यूजर को चुनें ताकि उसकी पूरी प्रोफ़ाइल, लोकेशन और फॉलो/लाइक डिटेल देख सकें।
+                किसी यूजर को चुनें ताकि उसकी प्रोफ़ाइल एडिट, लोकेशन और फॉलो/लाइक डिटेल देख सकें।
               </div>
             )}
           </div>
@@ -1073,7 +1648,7 @@ export const SocialMonitorSection: React.FC<SocialMonitorSectionProps> = ({
                 Firebase Real-Time Social &amp; Chat Collection Endpoints
               </h3>
               <p className="mt-1 text-xs sm:text-sm text-slate-600">
-                अपने Android User App में नीचे दिए गए Firestore Database ID और कलेक्शन पाथ का उपयोग करें—हर मैसेज, फॉलो और लाइक तुरंत इस एडमिन मॉनिटर में लाइव दिखेगा।
+                अपने Android User App में नीचे दिए गए Firestore Database ID और कलेक्शन पाथ का उपयोग करें—प्रोफ़ाइल बदलाव, ब्लॉक/डिलीट एक्शन, मैसेज, फॉलो और लाइक बिना किसी देरी के तुरंत लाइव सिंक होंगे।
               </p>
             </div>
 
@@ -1158,7 +1733,7 @@ export const SocialMonitorSection: React.FC<SocialMonitorSectionProps> = ({
                   ShayariSocialRepository.kt
                 </div>
                 <div className="text-[11px] text-slate-400">
-                  User Registration · Follow/Like Edges · 1-on-1 Real-Time Chat · Instant Block Enforcement
+                  Rule-Safe Profile Sync · Instant Block &amp; Removal Listener · Sorted 1-on-1 Chat Updates
                 </div>
               </div>
               <button
@@ -1187,6 +1762,163 @@ export const SocialMonitorSection: React.FC<SocialMonitorSectionProps> = ({
               <code>{kotlinSdkCode}</code>
             </pre>
           </div>
+        </div>
+      )}
+
+      {/* Edit User Profile Modal */}
+      {editModalUser && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="edit-user-dialog-title"
+          className="fixed inset-0 z-50 bg-slate-900/50 flex items-center justify-center p-4"
+        >
+          <form
+            onSubmit={(e) => void handleSaveEditedProfile(e)}
+            className="bg-white border border-slate-200 rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-xl"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <h3
+                id="edit-user-dialog-title"
+                className="font-display text-base font-bold text-slate-900"
+              >
+                Edit Live App User Profile
+              </h3>
+              <button
+                type="button"
+                onClick={() => setEditModalUser(null)}
+                aria-label="Close edit dialog"
+                className="p-1 text-slate-400 hover:text-slate-700"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="font-mono text-[11px] text-slate-500">
+              UID: {editModalUser.uid}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Display Name
+                </label>
+                <input
+                  type="text"
+                  required
+                  maxLength={100}
+                  value={editForm.displayName}
+                  onChange={(e) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      displayName: e.target.value,
+                    }))
+                  }
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Username (@handle)
+                </label>
+                <input
+                  type="text"
+                  required
+                  maxLength={40}
+                  value={editForm.username}
+                  onChange={(e) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      username: e.target.value,
+                    }))
+                  }
+                  className="w-full px-3 py-2 text-sm font-mono border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  City
+                </label>
+                <input
+                  type="text"
+                  maxLength={80}
+                  value={editForm.city}
+                  onChange={(e) =>
+                    setEditForm((prev) => ({ ...prev, city: e.target.value }))
+                  }
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Online Presence
+                </label>
+                <select
+                  value={editForm.isOnline ? 'online' : 'offline'}
+                  onChange={(e) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      isOnline: e.target.value === 'online',
+                    }))
+                  }
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500 bg-white"
+                >
+                  <option value="online">Online</option>
+                  <option value="offline">Offline</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Address / Location Detail
+              </label>
+              <input
+                type="text"
+                maxLength={200}
+                value={editForm.address}
+                onChange={(e) =>
+                  setEditForm((prev) => ({ ...prev, address: e.target.value }))
+                }
+                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Bio
+              </label>
+              <textarea
+                rows={2}
+                maxLength={300}
+                value={editForm.bio}
+                onChange={(e) =>
+                  setEditForm((prev) => ({ ...prev, bio: e.target.value }))
+                }
+                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setEditModalUser(null)}
+                className="px-4 py-2 text-xs font-medium text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={busyAction}
+                className="px-4 py-2 text-xs font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-60"
+              >
+                {busyAction ? 'Saving...' : 'Save Profile to Live Firestore'}
+              </button>
+            </div>
+          </form>
         </div>
       )}
 
@@ -1245,6 +1977,171 @@ export const SocialMonitorSection: React.FC<SocialMonitorSectionProps> = ({
               >
                 Confirm Block User
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Permanent Delete User Modal */}
+      {deleteUserTarget && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-user-dialog-title"
+          className="fixed inset-0 z-50 bg-slate-900/50 flex items-center justify-center p-4"
+        >
+          <div className="bg-white border border-slate-200 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-xl">
+            <h3
+              id="delete-user-dialog-title"
+              className="font-display text-base font-bold text-red-700"
+            >
+              Permanently Delete Account: {deleteUserTarget.displayName}?
+            </h3>
+            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+              यह एक्शन यूजर <code className="font-mono text-xs">{deleteUserTarget.uid}</code> को <code className="font-mono text-xs">/appUsers</code>, उनके सभी <code className="font-mono text-xs">/socialEdges</code> (follow/like) और उनके सभी <code className="font-mono text-xs">/chatRooms</code> व मैसेज इतिहास को Firestore से हमेशा के लिए हटा देगा।
+            </p>
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setDeleteUserTarget(null)}
+                className="px-4 py-2 text-xs font-medium text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={busyAction}
+                onClick={() => void handleConfirmDeleteUser()}
+                className="px-4 py-2 text-xs font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-60"
+              >
+                {busyAction ? 'Deleting...' : 'Delete Permanently'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Permanent Delete Room Modal */}
+      {deleteRoomTarget && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-room-dialog-title"
+          className="fixed inset-0 z-50 bg-slate-900/50 flex items-center justify-center p-4"
+        >
+          <div className="bg-white border border-slate-200 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-xl">
+            <h3
+              id="delete-room-dialog-title"
+              className="font-display text-base font-bold text-red-700"
+            >
+              Delete Chat Room Permanently?
+            </h3>
+            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+              रूम <code className="font-mono text-xs">{deleteRoomTarget.id}</code> (
+              {deleteRoomTarget.participantNames.join(' ↔ ')}) और उसके अंदर के सभी चैट मैसेज Firestore से स्थायी रूप से हट जाएंगे।
+            </p>
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setDeleteRoomTarget(null)}
+                className="px-4 py-2 text-xs font-medium text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={busyAction}
+                onClick={() => void handleConfirmDeleteRoom()}
+                className="px-4 py-2 text-xs font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-60"
+              >
+                {busyAction ? 'Deleting...' : 'Confirm Delete Room'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* One-Click Cleanup Dummy / Test Data Modal */}
+      {cleanupModalOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="cleanup-dummy-dialog-title"
+          className="fixed inset-0 z-50 bg-slate-900/50 flex items-center justify-center p-4"
+        >
+          <div className="bg-white border border-slate-200 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-xl">
+            <div className="flex items-center justify-between gap-2">
+              <h3
+                id="cleanup-dummy-dialog-title"
+                className="font-display text-base font-bold text-slate-900"
+              >
+                Cleanup Dummy &amp; Test Entries
+              </h3>
+              <button
+                type="button"
+                onClick={() => setCleanupModalOpen(false)}
+                aria-label="Close cleanup modal"
+                className="p-1 text-slate-400 hover:text-slate-700"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5 text-xs text-slate-700">
+              <div className="font-semibold text-slate-900">
+                Detected Test / Seeded Entries:
+              </div>
+              <div className="font-mono tabular-nums">
+                • Dummy / Test Users: {cleanupPlan.dummyUserCount}
+              </div>
+              <div className="font-mono tabular-nums">
+                • Test Social Edges: {cleanupPlan.dummyEdgeCount}
+              </div>
+              <div className="font-mono tabular-nums">
+                • Dummy Chat Rooms (+ messages): {cleanupPlan.dummyRoomCount}
+              </div>
+            </div>
+
+            <label className="flex items-start gap-2.5 text-xs text-slate-700 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={cleanupIncludeFlagged}
+                onChange={(e) => setCleanupIncludeFlagged(e.target.checked)}
+                className="mt-0.5 rounded border-slate-300 text-red-600"
+              />
+              <span>
+                Also purge blocked spam accounts ({cleanupPlan.flaggedSpamUserCount}) and spam-flagged rooms ({cleanupPlan.flaggedRoomCount})
+              </span>
+            </label>
+
+            {cleanupPlan.totalCount === 0 ? (
+              <p className="text-xs text-emerald-700 font-medium bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+                अभी डेटाबेस में कोई dummy या test एंट्री मौजूद नहीं है। प्रोडक्शन डेटाबेस 100% साफ़ है!
+              </p>
+            ) : (
+              <p className="text-xs text-slate-600">
+                कुल <strong>{cleanupPlan.totalCount}</strong> एंट्रीज़ (चैट मैसेज सहित) स्थायी रूप से डिलीट की जाएंगी।
+              </p>
+            )}
+
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setCleanupModalOpen(false)}
+                className="px-4 py-2 text-xs font-medium text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200"
+              >
+                Close
+              </button>
+              {cleanupPlan.totalCount > 0 && (
+                <button
+                  type="button"
+                  disabled={busyAction}
+                  onClick={() => void handleExecuteCleanup()}
+                  className="px-4 py-2 text-xs font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-60"
+                >
+                  {busyAction ? 'Cleaning...' : 'Purge Dummy Data Permanently'}
+                </button>
+              )}
             </div>
           </div>
         </div>

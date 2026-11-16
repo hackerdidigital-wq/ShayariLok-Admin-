@@ -4,6 +4,7 @@ import {
   ANDROID_SCHEMA_FIELDS,
   buildAndroidEndpoints,
   generateAndroidLocaleSyncCode,
+  generateCompleteAndroidAppPack,
   generateFirestoreRealtimeListenerCode,
   generateJavaZeroDepClient,
   generateKotlinModelsAndRepo,
@@ -74,6 +75,7 @@ test('code generators include all 15 config fields and maintenance/force-update 
   const gate = generateRemoteControlGateCode();
   assert.equal(gate.includes('config.maintenanceMode'), true);
   assert.equal(gate.includes('BuildConfig.VERSION_CODE'), true);
+  assert.equal(gate.includes('RemoteGateController'), true);
 
   const firestoreLive = generateFirestoreRealtimeListenerCode('admin_site_app2');
   assert.equal(firestoreLive.includes('FirestoreRealtimeRepository'), true);
@@ -87,4 +89,19 @@ test('code generators include all 15 config fields and maintenance/force-update 
   assert.equal(localeSync.includes('supported_countries'), true);
   assert.equal(localeSync.includes('setApplicationLocales'), true);
   assert.equal(localeSync.includes('dynamic_theme'), true);
+  assert.equal(localeSync.includes('indigo_editorial'), true);
+  assert.equal(localeSync.includes('royal_midnight'), true);
+  assert.equal(localeSync.includes('emerald_sufi'), true);
+  assert.equal(localeSync.includes('rose_shayari'), true);
+
+  const fullPack = generateCompleteAndroidAppPack(
+    'https://cdn.example/c.json',
+    'https://raw.example/c.json',
+    'admin_site_app2'
+  );
+  assert.equal(fullPack.includes('class MainActivity : AppCompatActivity()'), true);
+  assert.equal(fullPack.includes('AppCompatDelegate.setApplicationLocales'), true);
+  assert.equal(fullPack.includes('RemoteGateController.applyAdminRemoteControl'), true);
+  assert.equal(fullPack.includes('showLanguageAndCountryPickerDialog'), true);
+  assert.equal(fullPack.includes('admin_site_app2'), true);
 });

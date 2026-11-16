@@ -423,8 +423,13 @@ export default function App() {
           setLastSyncLatencyMs(Math.max(12, elapsed));
           setRealtimeStatus('live');
         })
-        .catch(() => {
+        .catch((err) => {
           setRealtimeStatus('local');
+          const msg =
+            err instanceof Error
+              ? err.message
+              : 'Live Firestore sync failed for publicSites';
+          showBanner('error', msg);
         });
     }, 120);
     return () => window.clearTimeout(timer);
@@ -1243,19 +1248,20 @@ export default function App() {
   ]);
 
   const effectiveAppUsers = useMemo(
-    () => (isAuthorizedAdmin && cloudAppUsers.length > 0 ? cloudAppUsers : DEMO_APP_USERS),
+    () => (isAuthorizedAdmin ? cloudAppUsers : DEMO_APP_USERS),
     [isAuthorizedAdmin, cloudAppUsers]
   );
   const effectiveSocialEdges = useMemo(
-    () => (isAuthorizedAdmin && cloudSocialEdges.length > 0 ? cloudSocialEdges : DEMO_SOCIAL_EDGES),
+    () => (isAuthorizedAdmin ? cloudSocialEdges : DEMO_SOCIAL_EDGES),
     [isAuthorizedAdmin, cloudSocialEdges]
   );
   const effectiveChatRooms = useMemo(
-    () => (isAuthorizedAdmin && cloudChatRooms.length > 0 ? cloudChatRooms : DEMO_CHAT_ROOMS),
+    () => (isAuthorizedAdmin ? cloudChatRooms : DEMO_CHAT_ROOMS),
     [isAuthorizedAdmin, cloudChatRooms]
   );
-  const userDataMode: 'live' | 'sandbox' =
-    isAuthorizedAdmin && cloudAppUsers.length > 0 ? 'live' : 'sandbox';
+  const userDataMode: 'live' | 'sandbox' = isAuthorizedAdmin
+    ? 'live'
+    : 'sandbox';
 
   const standaloneWebsiteUrl = useMemo(() => {
     const origin =
@@ -1559,6 +1565,7 @@ export default function App() {
             >
               <SocialMonitorSection
                 user={user}
+                activeSiteId={activeSiteId || undefined}
                 onSignIn={() => void handleGoogleSignIn()}
               />
             </Suspense>

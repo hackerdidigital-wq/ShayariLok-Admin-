@@ -24,6 +24,7 @@ import {
   ANDROID_SCHEMA_FIELDS,
   buildAndroidEndpoints,
   generateAndroidLocaleSyncCode,
+  generateCompleteAndroidAppPack,
   generateFirestoreRealtimeListenerCode,
   generateJavaZeroDepClient,
   generateKotlinModelsAndRepo,
@@ -51,6 +52,7 @@ interface AndroidApiSectionProps {
 }
 
 type CodeTabId =
+  | 'full_pack'
   | 'kotlin'
   | 'firestore'
   | 'locale'
@@ -74,7 +76,7 @@ export const AndroidApiSection: React.FC<AndroidApiSectionProps> = ({
   onOpenGitHubSync,
   onOpenProxySettings,
 }) => {
-  const [activeTab, setActiveTab] = useState<CodeTabId>('kotlin');
+  const [activeTab, setActiveTab] = useState<CodeTabId>('full_pack');
   const [jsonFormatMode, setJsonFormatMode] = useState<'base' | 'extended'>('base');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [probes, setProbes] = useState<Record<string, EndpointProbeState>>({});
@@ -114,6 +116,11 @@ export const AndroidApiSection: React.FC<AndroidApiSectionProps> = ({
     { label: string; filename: string; code: string }
   > = useMemo(
     () => ({
+      full_pack: {
+        label: 'Full Android Studio Kotlin Pack',
+        filename: 'ShayariLok_Complete_Kotlin_Pack.kt',
+        code: generateCompleteAndroidAppPack(primaryUrl, fallbackUrl, targetSiteId),
+      },
       kotlin: {
         label: 'Kotlin (OkHttp + Gson)',
         filename: 'ShayariConfig.kt + ConfigRepository.kt',
@@ -136,7 +143,7 @@ export const AndroidApiSection: React.FC<AndroidApiSectionProps> = ({
       },
       control: {
         label: 'Maintenance & Force Update',
-        filename: 'MainActivity.kt (Remote Control Gate)',
+        filename: 'RemoteGateController.kt',
         code: generateRemoteControlGateCode(),
       },
       manifest: {
